@@ -2,7 +2,7 @@
 
   COPYRIGHT(C) 2004  hardkoder@gmail.com / http://www.kipple.pe.kr
 
-  저작권 정보 :
+  저작권 정보 : ( BSD License )
     - 이 소스는 자유로이 사용/수정/재배포 가능합니다.
     - 단, 당신이 만들었다고 주장하거나 거짓말하면 안됨.
     - 소스의 오류를 찾았거나, 문제점을 수정하였을 경우 이에 대한 내용을 알려주면 정말 고마울껄..
@@ -39,13 +39,14 @@
 	2004/10/25	- by yongari : __LP64__ , 빅엔디안(le64toh/le132oh/le16toh) 관련 이슈 수정
 	2004/10/26	- BSD/LINUX : byte-order, libiconv 이슈 정리 
 	2004/10/30	- 정리 & 정리.. 
+	2004/11/14	- by xxfre86 : 암호 걸린 파일 처리 추가
 
   
   할일 : ( * 표는 한거 )
 	- bzip2 로 압축된 파일의 압축 해제 *
 	- UI 개선 ( PROGRESS, 에러 메시지 출력, 압축 해제 결과 ) *
 	- 분할 압축 파일 지원 *
-	- 암호 걸린 파일 지원
+	- 암호 걸린 파일 지원 *
 	- 손상된 파일에서의 좀더 많은 테스트
 	- 파일 CRC 체크 
 
@@ -107,6 +108,9 @@ using namespace std;
 #ifndef LONG
 	typedef long LONG;
 #endif
+#ifndef ULONG
+	typedef unsigned long ULONG;   // same as DWORD? i don't know.
+#endif
 #ifndef BOOL
 	typedef int BOOL;
 #endif
@@ -144,10 +148,10 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[] = "CUnAlz0.23";
+static const char UNALZ_VERSION[] = "CUnAlz0.30";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004 hardkoder@gmail.com";
 
-
+enum		{ENCR_HEADER_LEN=12}; // xf86
 // 맨 파일 앞..
 struct SAlzHeader
 {
@@ -180,7 +184,9 @@ enum COMPRESSION_METHOD					///<  압축 방법..
 struct _SLocalFileHeaderHead			///<  고정 헤더.
 {
 	SHORT	fileNameLength;
-	BYTE	unknown[5];					///<  ???
+	BYTE    fileAttribute;      // from http://www.zap.pe.kr
+	UINT32  fileTimeDate;    
+	
 	BYTE	fileSizeByte;				///<  파일 크기 필드의 크기 : 0x10, 0x20, 0x40, 0x80 각각 1byte, 2byte, 4byte, 8byte
 	BYTE	unknown2[1];				///<  ???
 
@@ -212,7 +218,7 @@ struct SLocalFileHeader
 	void Clear() { if(fileName) free(fileName); fileName=NULL; if(extraField) free(extraField);extraField=NULL; }
 	_SLocalFileHeaderHead	head;
 
-	BYTE					compressionMethod;			///<  압축 방법 : 2 - deflate, 1 - bzip2(?), 0 - 압축 안함.
+	BYTE					compressionMethod;			///<  압축 방법 : 2 - deflate, 1 - 변형 bzip2, 0 - 압축 안함.
 	BYTE					unknown3[1];				///<  ???
 	UINT32					maybeCRC;					///<  아마도 crc
 
@@ -223,6 +229,8 @@ struct SLocalFileHeader
 	BYTE*					extraField;
 	_SDataDescriptor		dataDescriptor;
 	INT64					dwFileDataPos;			///<  file data 가 저장된 위치..
+	
+	CHAR					encChk[ENCR_HEADER_LEN];  // xf86
 };
 
 struct _SCentralDirectoryStructureHead
@@ -314,6 +322,9 @@ public:
 	BOOL	ExtractAll(const char* szDestPathName);
 	void	SetCallback(_UnAlzCallback* pFunc, void* param=NULL);
 
+	void	setPassword(char *passwd) { if(strlen(passwd) == 0) return; strcpy(m_szPasswd, passwd); };  // xf86
+	BOOL	IsEncrypted() { return m_bIsEncrypted; };
+
 #ifdef _UNALZ_ICONV
 	void	SetDestCodepage(const char* szToCodepage) { strcpy(m_szToCodepage, szToCodepage); }
 #endif
@@ -363,6 +374,10 @@ public :
 		ERR_ICONV_NOT_ENOUGH_SPACE_OF_BUFFER_TO_CONVERT,
 		ERR_ICONV_ETC,
 
+		ERR_PASSWD_NOT_SET,
+		ERR_INVALID_PASSWD,
+		ERR_USER_ABORTED,
+
 	};
 	ERR		GetLastErr(){return m_nErr;}
 	const char* GetLastErrStr(){return LastErrToStr(m_nErr);}
@@ -383,6 +398,7 @@ public :
 	static BOOL			IsFolder(LPCSTR szPathName);
 	static const char*	GetVersion() { return UNALZ_VERSION; }
 	static const char*	GetCopyright() { return UNALZ_COPYRIGHT; }
+	BOOL				IsHalted() { return m_bHalt; }		// by xf86
 
 private :
 	SIGNATURE	ReadSignature();
@@ -432,6 +448,17 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 	BOOL		FSeek(INT64 offset);
 	BOOL		FRead(void* buffer, UINT32 nBytesToRead, int* pTotRead=NULL);
 
+	BOOL		IsDataDescr() { return m_bIsDataDescr; };   // xf86
+	int			getPasswordLen() { return strlen(m_szPasswd); };
+	void		CryptDecodeBuffer(UINT32 uCount, CHAR *buf);
+	void		CryptInitKeys();
+	void		CryptUpdateKeys(CHAR c);
+	BOOL		CryptCheck(CHAR *buf);
+	CHAR		CryptDecryptCHAR();
+	void		CryptDecode(CHAR &c);
+	UINT32		CryptCRC32(UINT32 l, CHAR c);
+	BOOL		chkValidPassword();			// xf86
+
 	enum		{MAX_FILES=1000};								///< 처리 가능한 분할 압축 파일 수.
 	enum		{MULTIVOL_TAIL_SIZE=16,MULTIVOL_HEAD_SIZE=8};	///< 분할 압축시 꼴랑지, 헤더 크기 
 	struct SFile												///< 분할 파일 정보
@@ -448,6 +475,11 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 	INT64		m_nVirtualFilePos;					///< 멀티볼륨에서의 가상의 위치
 	INT64		m_nCurFilePos;						///< 현재 파일의 물리적 위치.
 	BOOL		m_bIsEOF;							///< 파일의 끝까지 (분할 파일 포함해서) 왔나?
+
+	BOOL		m_bIsEncrypted;		// xf86
+	BOOL		m_bIsDataDescr;
+	char		m_szPasswd[256];
+	UINT32		m_keys[3];
 
 
 private :

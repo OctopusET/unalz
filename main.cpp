@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <iostream>
 #include "UnAlz.h"
 
 
@@ -69,7 +70,8 @@ int main(int argc, char* argv[])
 {
 //	printf("unalz v0.20 (2004/10/22) \n");
 //	printf("unalz v0.22 (2004/10/27) \n");
-	printf("unalz v0.23 (2004/10/30) \n");
+//	printf("unalz v0.23 (2004/10/30) \n");
+	printf("unalz v0.30 (2004/11/14) \n");
 	printf("copyright(C) 2004 http://www.kipple.pe.kr\n");
 
 	if(argc<2)
@@ -126,8 +128,15 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 
-	printf("\nExtract %s to %s\n", source, destpath);
 
+	if(unalz.IsEncrypted()){
+		char pwd[256];
+		cout << "Enter Password : ";
+		cin >> pwd;
+		unalz.setPassword(pwd);
+	}
+
+	printf("\nExtract %s to %s\n", source, destpath);
 
 	// callback 함수 세팅
 	unalz.SetCallback(UnAlzCallback, (void*)NULL);

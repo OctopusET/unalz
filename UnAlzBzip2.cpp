@@ -131,6 +131,8 @@ int CUnAlz::BZ2_bzRead(int* bzerror, MYBZFILE* b, void* buf, int len)
       if (bzf->strm.avail_in == 0 && !bzf->handle->FEof()) {
          bzf->handle->FRead(bzf->buf, sizeof(UChar)*BZ_MAX_UNUSED, &n);
 
+		 bzf->handle->CryptDecodeBuffer(n, (CHAR *)bzf->buf); // xf86 NOT tested -> tested
+
          if(n==0)
             { BZ_SETERR(BZ_IO_ERROR); return 0; };
          bzf->bufN = n;

@@ -105,6 +105,10 @@ static const char* errorstrtable[]=
 	"iconv-incomplete multibyte sequence",			// ERR_ICONV_INCOMPLETE_MULTIBYTE_SEQUENCE,
 	"iconv-not enough space of buffer to convert",	// ERR_ICONV_NOT_ENOUGH_SPACE_OF_BUFFER_TO_CONVERT,
 	"iconv-etc",									// ERR_ICONV_ETC,
+	
+	"password not set",								//ERR_PASSWD_NOT_SET,
+	"invalid password",								//ERR_INVALID_PASSWD,
+	"User Aborted",					
 };
 
 
@@ -126,6 +130,8 @@ CUnAlz::CUnAlz()
 	m_nVirtualFilePos = 0;
 	m_nCurFilePos = 0;
 	m_bIsEOF = FALSE;
+	m_bIsEncrypted = FALSE;
+	m_bIsDataDescr = FALSE;
 
 #ifdef _UNALZ_ICONV
 
@@ -159,7 +165,7 @@ void CUnAlz::SetCallback(_UnAlzCallback* pFunc, void* param)
 }
 
 #ifdef _WIN32
-#ifndef __GNUWIN32__
+#if !defined(__GNUWIN32__) && !defined(__GNUC__)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          파일 열기
 /// @param   szPathName  
@@ -319,6 +325,13 @@ BOOL CUnAlz::ReadLocalFileheader()
 	}
 
 	// ALZ 확장..
+	if( (zipHeader.head.fileSizeByte & (SHORT)1) != 0){
+		m_bIsEncrypted = TRUE;
+	}
+	if( (zipHeader.head.fileSizeByte & (SHORT)8) != 0){
+		m_bIsDataDescr = TRUE;
+	}
+	
 	int byteLen = zipHeader.head.fileSizeByte/0x10;
 
 	if(byteLen)
@@ -335,6 +348,7 @@ BOOL CUnAlz::ReadLocalFileheader()
     zipHeader.head.fileNameLength   =   unalz_le16toh(zipHeader.head.fileNameLength);
     zipHeader.compressedSize        =   unalz_le64toh(zipHeader.compressedSize);
     zipHeader.uncompressedSize      =   unalz_le64toh(zipHeader.uncompressedSize); 
+    zipHeader.maybeCRC			    =	unalz_le32toh(zipHeader.maybeCRC);
 
 	// FILE NAME
 	zipHeader.fileName = (char*)malloc(zipHeader.head.fileNameLength+1);
@@ -421,6 +435,8 @@ BOOL CUnAlz::ReadLocalFileheader()
 		FRead(zipHeader.extraField, 1, zipHeader.head.extraFieldLength);
 	}
 	*/
+
+	if(IsEncrypted()) FRead(zipHeader.encChk, ENCR_HEADER_LEN);  // xf86
 
 	// SKIP FILE DATA
 	zipHeader.dwFileDataPos = FTell();						// data 의 위치 저장하기..
@@ -594,6 +610,11 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	SExtractDest	dest;
 	char	szDestPathFileName[MAX_PATH];
 	
+	if(chkValidPassword() == FALSE) 
+	{
+		return FALSE;
+	}
+	
 	// 경로명
 	strcpy(szDestPathFileName, szDestPathName);
 	if(szDestPathFileName[strlen(szDestPathFileName)]!=PATHSEPC)
@@ -760,7 +781,7 @@ BOOL CUnAlz::ExtractAll(const char* szDestPathName)
 	for(i=m_fileList.begin(); i<m_fileList.end(); i++)
 	{
 		m_posCur = i;
-		ExtractCurrentFile(szDestPathName);
+		if(ExtractCurrentFile(szDestPathName)==FALSE) return FALSE;
 		if(m_bHalt) 
 			break;							// 멈추기..
 	}
@@ -1001,6 +1022,9 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 		{
 			break;
 		}
+		
+		CryptDecodeBuffer((int)read, (CHAR *)buf); // xf86
+
 		WriteToDest(dest, buf, (int)read);
 		//fwrite(buf, read, 1, fp);
 		sizeToRead -= read;
@@ -1172,6 +1196,8 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 				goto END;
 			}
 
+			CryptDecodeBuffer(uReadThis, (CHAR *)pInBuf); // xf86
+			
 			nRestReadCompressed -= uReadThis;
 			stream.next_in = pInBuf;
 			stream.avail_in = uReadThis;
@@ -1455,3 +1481,91 @@ const char* CUnAlz::LastErrToStr(ERR nERR)
 	if(nERR>= sizeof(errorstrtable)/sizeof(errorstrtable[0])) {ASSERT(0); return NULL; }
 	return errorstrtable[nERR];
 }
+
+
+// by xf86
+BOOL	CUnAlz::chkValidPassword()
+{
+	if (IsEncrypted()) {
+		if (getPasswordLen() == 0){
+			m_nErr = ERR_PASSWD_NOT_SET;
+			return FALSE;
+		}
+		CryptInitKeys();
+		if(CryptCheck(m_posCur->encChk) == FALSE){
+			m_nErr = ERR_INVALID_PASSWD;
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//	from CZipArchive
+//	Copyright (C) 2000 - 2004 Tadeusz Dracz
+//
+//		http://www.artpol-software.com
+//
+//	it's under GPL.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void CUnAlz::CryptDecodeBuffer(UINT32 uCount, CHAR *buf)
+{
+	if (IsEncrypted())
+		for (UINT32 i = 0; i < uCount; i++)
+			CryptDecode(buf[i]);
+}
+
+void CUnAlz::CryptInitKeys()
+{
+	m_keys[0] = 305419896L;
+	m_keys[1] = 591751049L;
+	m_keys[2] = 878082192L;
+	for (int i = 0; i < strlen(m_szPasswd); i++)
+		CryptUpdateKeys(m_szPasswd[i]);
+}
+
+void CUnAlz::CryptUpdateKeys(CHAR c)
+{
+	
+	m_keys[0] = CryptCRC32(m_keys[0], c);
+	m_keys[1] += m_keys[0] & 0xff;
+	m_keys[1] = m_keys[1] * 134775813L + 1;
+	c = CHAR(m_keys[1] >> 24);
+	m_keys[2] = CryptCRC32(m_keys[2], c);
+}
+
+BOOL CUnAlz::CryptCheck(CHAR *buf)
+{
+	CHAR b = 0;
+	for (int i = 0; i < ENCR_HEADER_LEN; i++)
+	{
+		b = buf[i]; 
+		CryptDecode((CHAR&)b);
+	}
+
+	if (IsDataDescr()) // Data descriptor present
+		return CHAR(m_posCur->head.fileTimeDate >> 8) == b;
+	else
+		return CHAR(m_posCur->maybeCRC >> 24) == b;
+}
+
+CHAR CUnAlz::CryptDecryptCHAR()
+{
+	int temp = (m_keys[2] & 0xffff) | 2;
+	return (CHAR)(((temp * (temp ^ 1)) >> 8) & 0xff);
+}
+
+void CUnAlz::CryptDecode(CHAR &c)
+{
+	c ^= CryptDecryptCHAR();
+	CryptUpdateKeys(c);
+}
+
+UINT32 CUnAlz::CryptCRC32(UINT32 l, CHAR c)
+{
+	const ULONG *CRC_TABLE = get_crc_table();
+	return CRC_TABLE[(l ^ c) & 0xff] ^ (l >> 8);
+}
+
