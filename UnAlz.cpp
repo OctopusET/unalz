@@ -10,31 +10,22 @@
 #	include <sys/stat.h>
 #endif
 
-// le16toh 등등..
-#if (defined(__FreeBSD__) || defined(__DARWIN__))
-#	include <sys/endian.h>	
-#endif
-
-#ifdef __linux__		// __BYTE_ORDER 가져오기 
-#	include <endian.h>
-#endif
-
 #ifdef _UNALZ_ICONV			// code page support
 #	include <iconv.h>
 #endif
 
-#ifdef __linux__			// iconv.h 때문에 필요 
-#	include <errno.h>
-#endif
-
-#ifndef _WIN32				// WIN32 는 무조건 LITTLE 이니까 필요없다. 
-#	define swapint64(Data) (INT64) ( (((Data)&0x00000000000000FFLL) << 56) | (((Data)&0x000000000000FF00LL) << 40) | (((Data)&0x0000000000FF0000LL) << 24) | (((Data)&0x00000000FF000000LL) << 8)  | (((Data)&0x000000FF00000000LL) >> 8)  | (((Data)&0x0000FF0000000000LL) >> 24) | (((Data)&0x00FF000000000000LL) >> 40) | (((Data)&0xFF00000000000000LL) >> 56) )
-#	define swapint32(a)    ((((a)&0xff)<<24)+(((a>>8)&0xff)<<16)+(((a>>16)&0xff)<<8)+(((a>>24)&0xff)))
-#	define swapint16(a)    (((a)&0xff)<<8)+(((a>>8)&0xff))
+#ifdef __linux__			// __BYTE_ORDER 가져오기 
+#	include <errno.h>		// iconv.h 때문에 필요 
 #endif
 
 
-//// byte-order : little to host ////
+#define swapint64(Data) (INT64) ( (((Data)&0x00000000000000FFLL) << 56) | (((Data)&0x000000000000FF00LL) << 40) | (((Data)&0x0000000000FF0000LL) << 24) | (((Data)&0x00000000FF000000LL) << 8)  | (((Data)&0x000000FF00000000LL) >> 8)  | (((Data)&0x0000FF0000000000LL) >> 24) | (((Data)&0x00FF000000000000LL) >> 40) | (((Data)&0xFF00000000000000LL) >> 56) )
+#define swapint32(a)    ((((a)&0xff)<<24)+(((a>>8)&0xff)<<16)+(((a>>16)&0xff)<<8)+(((a>>24)&0xff)))
+#define swapint16(a)    (((a)&0xff)<<8)+(((a>>8)&0xff))
+
+////////////////////////////////////////////////////////////////////////////
+//// byte-order : little to host                                        ////
+////////////////////////////////////////////////////////////////////////////
 
 #ifdef _WIN32		// little to little
 	inline UINT16	unalz_le16toh(UINT16 a){return a;}
@@ -42,13 +33,23 @@
 	inline UINT64	unalz_le64toh(UINT64 a){return a;}
 #endif
 
-#if (defined(__FreeBSD__) || defined(__DARWIN__))
+#ifdef __FreeBSD__
+#	include <sys/endian.h>	
 	inline UINT16	unalz_le16toh(UINT16 a){return le16toh(a);}
 	inline UINT32	unalz_le32toh(UINT32 a){return le32toh(a);}
 	inline UINT64	unalz_le64toh(UINT64 a){return le64toh(a);}
 #endif
 
-#ifdef __linux__	// 리눅스에서 little 을 host 로 바꾸는 함수를 모르겠다.. 그래서 그냥 define 된걸로 판단한다. 
+#ifdef __APPLE__
+#	include <machine/byte_order.h>
+	inline UINT16   unalz_le16toh(UINT16 a){return NXSwapShort(a);} 
+	inline UINT32   unalz_le32toh(UINT32 a){return NXSwapLong(a);} 
+	inline UINT64   unalz_le64toh(UINT64 a){return NXSwapLongLong(a);} 
+#endif
+
+
+#ifdef __linux__	
+#	include <endian.h>
 #	if __BYTE_ORDER == __BIG_ENDIAN
 	inline UINT16	unalz_le16toh(UINT16 a){return swapint16(a);}
 	inline UINT32	unalz_le32toh(UINT32 a){return swapint32(a);}
@@ -58,6 +59,10 @@
 	inline UINT32	unalz_le32toh(UINT32 a){return (a);}
 	inline UINT64	unalz_le64toh(UINT64 a){return (a);}
 #	endif
+//#	include <asm/byteorder.h>
+//	inline UINT16	unalz_le16toh(UINT16 a){return le16_to_cpu(a);}
+//	inline UINT32	unalz_le32toh(UINT32 a){return le32_to_cpu(a);}
+//	inline UINT64	unalz_le64toh(UINT64 a){return le64_to_cpu(a);}
 #endif
 
 
@@ -633,7 +638,7 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	}
 #endif
 	// CALLBACK 세팅
-	if(m_pFuncCallBack) m_pFuncCallBack(m_posCur->fileName, 0,0,m_pCallbackParam, NULL);
+	if(m_pFuncCallBack) m_pFuncCallBack(m_posCur->fileName, 0,m_posCur->uncompressedSize,m_pCallbackParam, NULL);
 
 	ret = ExtractTo(&dest);
 	if(dest.fp!=NULL)fclose(dest.fp);
@@ -1239,7 +1244,8 @@ BOOL CUnAlz::FOpen(const char* szPathName)
 	char* temp = strdup(szPathName);			// 파일명 복사..
 	int	  i;
 	int	  nLen = strlen(szPathName);
-	UINT32 dwFileSizeLow,dwFileSizeHigh;
+	UINT64 nFileSizeLow;
+	UINT32 dwFileSizeHigh;
 	m_nFileCount = 0;
 	m_nCurFile = 0;
 	m_nVirtualFilePos = 0;
@@ -1251,17 +1257,17 @@ BOOL CUnAlz::FOpen(const char* szPathName)
 #ifdef _WIN32
 		m_files[i].fp = CreateFileA(temp, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 		if(m_files[i].fp==INVALID_HANDLE_VALUE) break;
-		dwFileSizeLow = GetFileSize(m_files[i].fp, (DWORD*)&dwFileSizeHigh);
+		nFileSizeLow = GetFileSize(m_files[i].fp, (DWORD*)&dwFileSizeHigh);
 #else
 		m_files[i].fp = fopen(temp, "rb");
 		if(m_files[i].fp==NULL) break;
 		dwFileSizeHigh=0;
 		fseek(m_files[i].fp,0,SEEK_END);		
-		dwFileSizeLow=ftell(m_files[i].fp);		// _LARGEFILE64_SOURCE 호환성 문제 발생.. T.T
+		nFileSizeLow=ftell(m_files[i].fp);
 		fseek(m_files[i].fp,0,SEEK_SET);
 #endif
 		m_nFileCount++;
-		m_files[i].nFileSize = ((INT64)dwFileSizeLow) + (((INT64)dwFileSizeHigh)<<32);
+		m_files[i].nFileSize = ((INT64)nFileSizeLow) + (((INT64)dwFileSizeHigh)<<32);
 		if(i==0) m_files[i].nMultivolHeaderSize = 0;
 		else m_files[i].nMultivolHeaderSize = MULTIVOL_HEAD_SIZE;
 		m_files[i].nMultivolTailSize = MULTIVOL_TAIL_SIZE;
