@@ -139,19 +139,11 @@ SOURCE=.\zlib\crc32.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\zlib\infblock.c
+SOURCE=.\zlib\crc32.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\zlib\infblock.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infcodes.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infcodes.h
+SOURCE=.\zlib\infback.c
 # End Source File
 # Begin Source File
 
@@ -171,6 +163,10 @@ SOURCE=.\zlib\inflate.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\zlib\inflate.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\zlib\inftrees.c
 # End Source File
 # Begin Source File
@@ -179,15 +175,11 @@ SOURCE=.\zlib\inftrees.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\zlib\infutil.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infutil.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\zlib\zconf.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zlib\zconf.in.h
 # End Source File
 # Begin Source File
 

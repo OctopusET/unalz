@@ -40,6 +40,10 @@
 	2004/10/26	- BSD/LINUX : byte-order, libiconv 이슈 정리 
 	2004/10/30	- 정리 & 정리.. 
 	2004/11/14	- by xxfre86 : 암호 걸린 파일 처리 추가
+	2004/11/27	- cygwin에서 컴파일 되도록 수정
+	            - 암호처리 부분에 일부 사용된 GPL 의 CZipArchive 코드를 "ZIP File Format Specification version 4.5" 문서를 참고해서 다시 코딩 & 정리
+				- 암호걸린 파일과 안걸린 파일 섞였을때 처리
+				- 파일의 뒷부분이 잘려서 손상된 파일도 멀쩡한 부분까지는 압축을 풀도록 수정
 
   
   할일 : ( * 표는 한거 )
@@ -47,8 +51,8 @@
 	- UI 개선 ( PROGRESS, 에러 메시지 출력, 압축 해제 결과 ) *
 	- 분할 압축 파일 지원 *
 	- 암호 걸린 파일 지원 *
-	- 손상된 파일에서의 좀더 많은 테스트
-	- 파일 CRC 체크 
+	- 손상된 파일에서의 좀더 많은 테스트 -> 
+	- 파일 CRC 체크 -> alz 는 CRC 필드가 없다. OTL
 
   컴파일 옵션 ( -DXXXX )
 	- _WIN32 : WIN32 
@@ -120,9 +124,6 @@ using namespace std;
 #ifndef TRUE
 #	define TRUE                1
 #endif
-#ifndef LPCTSTR
-	typedef const char* LPCSTR;
-#endif
 #ifndef HANDLE
 #	ifdef _WIN32
 	typedef void *HANDLE;
@@ -133,7 +134,7 @@ using namespace std;
 #ifndef ASSERT
 #	include <assert.h>
 //#	define ASSERT(x) assert(x)
-#	define ASSERT(x) {printf("assert file:%s line:%d\n", __FILE__, __LINE__);}
+#	define ASSERT(x) {printf("assert at file:%s line:%d\n", __FILE__, __LINE__);}
 #endif
 
 
@@ -148,7 +149,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[] = "CUnAlz0.30";
+static const char UNALZ_VERSION[] = "CUnAlz0.31";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004 hardkoder@gmail.com";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
@@ -184,10 +185,11 @@ enum COMPRESSION_METHOD					///<  압축 방법..
 struct _SLocalFileHeaderHead			///<  고정 헤더.
 {
 	SHORT	fileNameLength;
-	BYTE    fileAttribute;      // from http://www.zap.pe.kr
+	BYTE    fileAttribute;			     // from http://www.zap.pe.kr
 	UINT32  fileTimeDate;    
 	
-	BYTE	fileSizeByte;				///<  파일 크기 필드의 크기 : 0x10, 0x20, 0x40, 0x80 각각 1byte, 2byte, 4byte, 8byte
+	BYTE	fileDescriptor;				///<  파일 크기 필드의 크기 : 0x10, 0x20, 0x40, 0x80 각각 1byte, 2byte, 4byte, 8byte.
+										///<  fileDescriptor & 1 == 암호걸렸는지 여부
 	BYTE	unknown2[1];				///<  ???
 
 	/*
@@ -218,9 +220,10 @@ struct SLocalFileHeader
 	void Clear() { if(fileName) free(fileName); fileName=NULL; if(extraField) free(extraField);extraField=NULL; }
 	_SLocalFileHeaderHead	head;
 
-	BYTE					compressionMethod;			///<  압축 방법 : 2 - deflate, 1 - 변형 bzip2, 0 - 압축 안함.
-	BYTE					unknown3[1];				///<  ???
-	UINT32					maybeCRC;					///<  아마도 crc
+	BYTE					compressionMethod;			///< 압축 방법 : 2 - deflate, 1 - 변형 bzip2, 0 - 압축 안함.
+	BYTE					unknown3[1];				///< ???
+	BYTE					unknown4[3];				///< 아마도 crc?
+	BYTE					passwordCRC;				///< 암호 체크를 위한 1byte crc
 
 	INT64					compressedSize;
 	INT64					uncompressedSize;
@@ -228,9 +231,9 @@ struct SLocalFileHeader
 	CHAR*					fileName;
 	BYTE*					extraField;
 	_SDataDescriptor		dataDescriptor;
-	INT64					dwFileDataPos;			///<  file data 가 저장된 위치..
+	INT64					dwFileDataPos;				///<  file data 가 저장된 위치..
 	
-	CHAR					encChk[ENCR_HEADER_LEN];  // xf86
+	BYTE					encChk[ENCR_HEADER_LEN];	// xf86
 };
 
 struct _SCentralDirectoryStructureHead
@@ -297,7 +300,7 @@ struct SEndOfCentralDirectoryRecord
 #ifdef _WIN32
 #	pragma pack(pop, UNALZ)		///<  PACKING 원상 복구
 #else
-#	ifdef __LP64__				// 63bit 는 8byte 맞나 ? 잘모르겠다.. 
+#	ifdef __LP64__				// 64bit 는 패킹이 8byte 맞나 ? 잘모르겠다.....
 #		pragma pack(8)
 #	else
 #		pragma pack(4)
@@ -352,8 +355,9 @@ public :
 	enum ERR							///< 에러 코드 - 정리 필요..
 	{
 		ERR_NOERR,
-		ERR_CANT_OPEN_FILE,				///<  파일 열기 실패
-		ERR_CANT_READ_SIG,				///<  signature 읽기 실패
+		ERR_CANT_OPEN_FILE,				///< 파일 열기 실패
+		ERR_CORRUPTED_FILE,				///< 깨진 파일?
+		ERR_CANT_READ_SIG,				///< signature 읽기 실패
 		ERR_CANT_READ_FILE,
 
 		ERR_AT_READ_HEADER,
@@ -394,8 +398,8 @@ public :
 	};
 
 public :
-	static BOOL			DigPath(const char* szPathName);
-	static BOOL			IsFolder(LPCSTR szPathName);
+	static BOOL			DigPath(const CHAR* szPathName);
+	static BOOL			IsFolder(const CHAR* szPathName);
 	static const char*	GetVersion() { return UNALZ_VERSION; }
 	static const char*	GetCopyright() { return UNALZ_COPYRIGHT; }
 	BOOL				IsHalted() { return m_bHalt; }		// by xf86
@@ -450,14 +454,6 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 
 	BOOL		IsDataDescr() { return m_bIsDataDescr; };   // xf86
 	int			getPasswordLen() { return strlen(m_szPasswd); };
-	void		CryptDecodeBuffer(UINT32 uCount, CHAR *buf);
-	void		CryptInitKeys();
-	void		CryptUpdateKeys(CHAR c);
-	BOOL		CryptCheck(CHAR *buf);
-	CHAR		CryptDecryptCHAR();
-	void		CryptDecode(CHAR &c);
-	UINT32		CryptCRC32(UINT32 l, CHAR c);
-	BOOL		chkValidPassword();			// xf86
 
 	enum		{MAX_FILES=1000};								///< 처리 가능한 분할 압축 파일 수.
 	enum		{MULTIVOL_TAIL_SIZE=16,MULTIVOL_HEAD_SIZE=8};	///< 분할 압축시 꼴랑지, 헤더 크기 
@@ -481,6 +477,28 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 	char		m_szPasswd[256];
 	UINT32		m_keys[3];
 
+private :
+	/*
+	void		CryptDecodeBuffer(UINT32 uCount, CHAR *buf);
+	void		CryptInitKeys();
+	void		CryptUpdateKeys(CHAR c);
+	BOOL		CryptCheck(CHAR *buf);
+	CHAR		CryptDecryptCHAR();
+	void		CryptDecode(CHAR &c);
+	UINT32		CryptCRC32(UINT32 l, CHAR c);
+	*/
+
+private :		// encryption 처리
+	BOOL		chkValidPassword();			// xf86
+	BOOL		IsEncryptedFile(BYTE fileDescriptor);
+	BOOL		IsEncryptedFile();
+	void		InitCryptKeys(const CHAR* szPassword);
+	void		UpdateKeys(BYTE c);
+	BOOL		CryptCheck(BYTE* buf);
+	BYTE		DecryptByte();
+	void		DecryptingData(int nSize, BYTE* data);
+	UINT32		CRC32(UINT32 l, BYTE c);
+	UINT32		m_key[3];
 
 private :
 	FileList			m_fileList;					///< 압축파일 내의 파일 목록
