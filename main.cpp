@@ -5,7 +5,18 @@
 void Usage()
 {
 	printf("\n");
+#ifdef _UNALZ_ICONV
+		printf("USAGE : unalz [-utf8 | -cp949] sourcefile.alz [dest path] \n");
+#	ifdef _UNALZ_UTF8
+		printf("        -utf8  : convert filename's codepage to UTF-8 (default)\n");
+		printf("        -cp949 : convert filename's codepage to CP949\n");
+#	else
+		printf("        -utf8  : convert filename's codepage to UTF-8\n");
+		printf("        -cp949 : convert filename's codepage to CP949 (default)\n");
+#	endif // _UNALZ_UTF8
+#else		// no iconv
 	printf("USAGE : unalz sourcefile.alz [dest path] \n");
+#endif // _UNALZ_ICONV
 }
 
 void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* param, BOOL* bHalt)
@@ -20,12 +31,11 @@ void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* pa
 	// 파일명 출력..
 	if(szMessage)
 	{
-		printf("\n");
-		printf("Extracting : %s      ", szMessage);
+		//printf("\n");
+		printf("unalziiiing : %s	", szMessage);
 		nPrevPercent = -1;
 		return ;
 	}
-
 
 	percent = nCurrent*100/nRange;
 
@@ -34,22 +44,21 @@ void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* pa
 #ifdef _WIN32
 	sprintf(buf, "%I64d/%I64d (%I64d%%)", nCurrent, nRange, percent);
 #else
-	sprintf(buf, "%d/%d (%d%%)", (int)nCurrent, (int)nRange, (int)percent);
+	sprintf(buf, "%d/%d (%d%%)", (int)nCurrent, (int)nRange, (int)percent);		// int64 를 출력할라면 어찌해야 되는지?
 #endif
-	printf("%s", buf);
+	puts(buf);
 	buflen = strlen(buf);
 	fflush(stdout);
 
-	for(i=0;i<buflen;i++)
-		printf("\b");
-
+	for(i=0;i<buflen;i++) printf("\b");
 }
+
 
 int main(int argc, char* argv[])
 {
-	printf("unalz v0.20 (2004/10/22) \n");
+//	printf("unalz v0.20 (2004/10/22) \n");
+	printf("unalz v0.22 (2004/10/28) \n");
 	printf("copyright(C) 2004 http://www.kipple.pe.kr\n");
-
 
 	if(argc<2)
 	{
@@ -57,30 +66,58 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 
-
-	char* source = argv[1];
-	char* dest = argv[2];
-
-	if(argc<3) dest=".";	// current dir
-	else dest = argv[2];
-
-
 	CUnAlz	unalz;
+	char* source=NULL;
+	char* destpath=".";
+	char* destcodepage=NULL;
+	int   count=1;
 
+	// utf8 옵션 처리
+#ifdef _UNALZ_ICONV
+	if(strcmp(argv[count], "-utf8")==0)
+	{
+		destcodepage = "UTF-8";				// utf-8 support
+		count++;
+	}
+	else if(strcmp(argv[count], "-cp949")==0)
+	{
+		destcodepage = "CP949";				// cp959 
+		count++;
+	}
+	if(count>=argc)	{Usage();return 0;}		// 옵션만 쓰면 어쩌라고..
+
+	if(destcodepage) unalz.SetDestCodepage(destcodepage);
+#endif
+
+	// 소스 파일
+	source=argv[count];						
+	count++;
+
+	// 대상 경로
+	if(count<argc)							
+	{
+		destpath = argv[count];
+		count++;
+	}
+
+
+	// 파일 열기
 	if(unalz.Open(source)==FALSE)
 	{
-		printf("file open error : %s\nerr code(%d)\n", source,unalz.GetLastErr());
+		printf("file open error : %s\n", source);
+		printf("err code(%d) (%s)\n", unalz.GetLastErr(), unalz.GetLastErrStr());
 		return 0;
 	}
 
-	printf("\nExtract %s to %s\n", source, dest);
+	printf("\nExtract %s to %s\n", source, destpath);
 
 
 	// callback 함수 세팅
 	unalz.SetCallback(UnAlzCallback, (void*)NULL);
-	if(unalz.ExtractAll(dest)==FALSE)
+	if(unalz.ExtractAll(destpath)==FALSE)
 	{
-		printf("extract %s to %s failed.\n", source, dest);
+		printf("extract %s to %s failed.\n", source, destpath);
+		printf("err code(%d) (%s)\n", unalz.GetLastErr(), unalz.GetLastErrStr());
 	}
 	printf("\ndone..\n");
 

@@ -1,6 +1,7 @@
 /*
 
   COPYRIGHT(C) 2004  hardkoder@gmail.com / http://www.kipple.pe.kr
+
   저작권 정보 :
     - 이 소스는 자유로이 사용/수정/재배포 가능합니다.
     - 단, 당신이 만들었다고 주장하거나 거짓말하면 안됨.
@@ -17,11 +18,6 @@
 	  원래의 bzip2 소스를 그대로 쓰면 안된다. )
 	- 이 소스는 4칸 탭을 사용 하였음.
 
-  참고 :
-    - 원래 소스는 다중 플랫폼에서 사용할수 있게 하기 위해서 stdio 를 사용하였지만 
-	  2GB 이상의 파일을 처리하기 위해서 어쩔수 없이 WINDOWS I/O 함수로 전부 바꾸었음.
-	- 리눅스등에서 사용하기 위해서 소스 수정이 필요하다면, 공동 작업을 요청해 주셈.
-
   개발 순서 :
 	2004/02/06	- http://www.wotsit.org/ 에서 ZIP File Format Specification version 4.5 [PKWARE Inc.] 를 
 				  다운로드 받아서 분석.
@@ -34,21 +30,29 @@
 				- callback 구현..
 	2004/03/07	- 유틸 함수 추가 ( ExtractCurrentFileToBuf() )
 	2004/10/03	- 분할 압축 해제 기능 추가 ( FILE I/O 에 대한 래퍼 클래스 구현 )
-	            - 2GB 이상의 파일 처리 지원
+	            - 2GB 이상의 파일 처리 지원 (WINDOWS ONLY)
+	2004/10/22	- 다중 플랫폼(BSD/LINUX)지원을 위한 수정
+				  ( BSD/LINUX 의 경우 2GB 이하의 파일만 지원 )
+	2004/10/23	- by xxfree86 : DARWIN 컴파일 지원, 경로명에 "\\" 포함시 문제점 수정
+	2004/10/24	- by aqua0125 : 코드페이지 변환처리, 64bit 파일 처리
+				- 빅엔디안, 코드페이지 변환 관련 소스 정리
+	2004/10/25	- by yongari : __LP64__ , 빅엔디안(le64toh/le132oh/le16toh) 관련 이슈 수정
+	2004/10/26	- BSD/LINUX : byte-order, libiconv 이슈 정리 
 
-  할일 :
-	- bzip2 로 압축된 파일의 압축 해제
-	- UI 개선 ( PROGRESS, 에러 메시지 출력, 압축 해제 결과 )
-	- 분할 압축 파일 지원
-
+  
+  할일 : ( * 표는 한거 )
+	- bzip2 로 압축된 파일의 압축 해제 *
+	- UI 개선 ( PROGRESS, 에러 메시지 출력, 압축 해제 결과 ) *
+	- 분할 압축 파일 지원 *
 	- 암호 걸린 파일 지원
 	- 손상된 파일에서의 좀더 많은 테스트
 	- 파일 CRC 체크 
 
-  할일중 한일 :
-	- bzip2 로 압축된 파일의 압축 해제
-	- UI 개선 ( PROGRESS, 에러 메시지 출력, 압축 해제 결과 )
-	- 분할 압축 파일 지원
+  컴파일 옵션 ( -DXXXX )
+	- _WIN32 : WIN32 
+	- _UNALZ_ICONV : iconv 를 사용해서 code 페이지 변환 지원
+	- _UNALZ_UTF8 : _UNALZ_ICONV 를 사용할 경우 기본 코드페이지를 "UTF-8" 로 지정
+
 */
 
 
@@ -68,9 +72,22 @@ using namespace std;
 #endif
 #endif
 
-#ifndef DWORD
-	typedef unsigned long       DWORD;
-#endif // DWORD 
+#ifndef UINT64
+#ifdef _WIN32
+#	define UINT64 unsigned __int64
+#else
+#	define UINT64 unsigned long long
+#endif
+#endif
+
+#ifndef UINT32
+	typedef unsigned int		UINT32;
+#endif
+
+#ifndef UINT16
+	typedef unsigned short		UINT16;
+#endif
+
 #ifndef SHORT
 	typedef short SHORT;
 #endif
@@ -116,9 +133,6 @@ using namespace std;
 
 
 
-
-
-
 namespace UNALZ
 {
 
@@ -128,14 +142,14 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[] = "CUnAlz0.2";
+static const char UNALZ_VERSION[] = "CUnAlz0.21";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004 hardkoder@gmail.com";
 
 
 // 맨 파일 앞..
 struct SAlzHeader
 {
-	DWORD	unknown;			// ??
+	UINT32	unknown;			// ??
 };
 
 /*
@@ -174,9 +188,9 @@ struct _SLocalFileHeaderHead			///<  고정 헤더.
 	SHORT	compressionMethod;
 	SHORT	lastModFileTime;
 	SHORT	lastModFileDate;
-	DWORD	crc32;
-	DWORD	compressedSize;
-	DWORD	uncompressedSize;
+	UINT32	crc32;
+	UINT32	compressedSize;
+	UINT32	uncompressedSize;
 	SHORT	fileNameLength;
 	SHORT	extraFieldLength;
 	*/
@@ -184,9 +198,9 @@ struct _SLocalFileHeaderHead			///<  고정 헤더.
 
 struct _SDataDescriptor
 {
-	DWORD	crc32;
-	DWORD	compressed;
-	DWORD	uncompressed;
+	UINT32	crc32;
+	UINT32	compressed;
+	UINT32	uncompressed;
 };
 
 struct SLocalFileHeader
@@ -198,7 +212,7 @@ struct SLocalFileHeader
 
 	BYTE					compressionMethod;			///<  압축 방법 : 2 - deflate, 1 - bzip2(?), 0 - 압축 안함.
 	BYTE					unknown3[1];				///<  ???
-	DWORD					maybeCRC;					///<  아마도 crc
+	UINT32					maybeCRC;					///<  아마도 crc
 
 	INT64					compressedSize;
 	INT64					uncompressedSize;
@@ -211,9 +225,9 @@ struct SLocalFileHeader
 
 struct _SCentralDirectoryStructureHead
 {
-	DWORD	dwUnknown;						///<  항상 NULL 이던데..
-	DWORD	dwMaybeCRC;						///<  아마도 crc
-	DWORD	dwCLZ03;						///<  "CLZ0x03" - 0x035a4c43 끝을 표시하는듯.
+	UINT32	dwUnknown;						///<  항상 NULL 이던데..
+	UINT32	dwMaybeCRC;						///<  아마도 crc
+	UINT32	dwCLZ03;						///<  "CLZ0x03" - 0x035a4c43 끝을 표시하는듯.
 	/*
 	SHORT	versionMadeBy;
 	SHORT	versionNeededToExtract;
@@ -221,16 +235,16 @@ struct _SCentralDirectoryStructureHead
 	SHORT	compressionMethod;
 	SHORT	lastModFileTime;
 	SHORT	lastModFileDate;
-	DWORD	crc32;
-	DWORD	compressedSize;
-	DWORD	uncompressedSize;
+	UINT32	crc32;
+	UINT32	compressedSize;
+	UINT32	uncompressedSize;
 	SHORT	fileNameLength;
 	SHORT	extraFieldLength;
 	SHORT	fileCommentLength;
 	SHORT	diskNumberStart;
 	SHORT	internalFileAttributes;
-	DWORD	externalFileAttributes;
-	DWORD	relativeOffsetOfLocalHeader;
+	UINT32	externalFileAttributes;
+	UINT32	relativeOffsetOfLocalHeader;
 	*/
 };
 
@@ -254,8 +268,8 @@ struct _SEndOfCentralDirectoryRecordHead
 	SHORT	numberOfTheDiskWithTheStartOfTheCentralDirectory;
 	SHORT	centralDirectoryOnThisDisk;
 	SHORT	totalNumberOfEntriesInTheCentralDirectoryOnThisDisk;
-	DWORD	sizeOfTheCentralDirectory;
-	DWORD	offsetOfStartOfCentralDirectoryWithREspectoTotheStartingDiskNumber;
+	UINT32	sizeOfTheCentralDirectory;
+	UINT32	offsetOfStartOfCentralDirectoryWithREspectoTotheStartingDiskNumber;
 	SHORT	zipFileCommentLength;
 };
 */
@@ -271,9 +285,13 @@ struct SEndOfCentralDirectoryRecord
 */
 
 #ifdef _WIN32
-#pragma pack(pop, UNALZ)		///<  PACKING 원상 복구
+#	pragma pack(pop, UNALZ)		///<  PACKING 원상 복구
 #else
-#pragma pack(4)
+#	ifdef __LP64__				// 63bit 는 8byte 맞나 ? 잘모르겠다.. 
+#		pragma pack(8)
+#	else
+#		pragma pack(4)
+#	endif
 #endif
 
 
@@ -294,20 +312,28 @@ public:
 	BOOL	ExtractAll(const char* szDestPathName);
 	void	SetCallback(_UnAlzCallback* pFunc, void* param=NULL);
 
+#ifdef _UNALZ_ICONV
+	void	SetDestCodepage(const char* szToCodepage) { strcpy(m_szToCodepage, szToCodepage); }
+#endif
+
 public :			///<  WIN32 전용 ( UNICODE 처리용 )
-/*
+
 #ifdef _WIN32
+#ifndef __GNUWIN32__
+#ifndef LPCWSTR
+	typedef const wchar_t* LPCWSTR;
+#endif
 	BOOL	Open(LPCWSTR szPathName);
 	BOOL	SetCurrentFile(LPCWSTR szFileName);
 	static BOOL		IsFolder(LPCWSTR szPathName);
-#endif
-*/
+#endif // __GNUWIN32__	
+#endif // _WIN32
 
 public :
 	typedef vector<SLocalFileHeader>		FileList;			///<  파일 목록.
 	const FileList&	GetFileList() { return m_fileList; };		///<  file 목록 리턴
 	FileList::iterator GetCurFileHeader() { return m_posCur; };	///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
-//	const SLocalFileHeader* GetCurFileHeader() { return _posCur; };	///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
+//	const SLocalFileHeader* GetCurFileHeader() { return m_posCur; };	///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
 
 public :
 	enum ERR							///< 에러 코드 - 정리 필요..
@@ -328,12 +354,21 @@ public :
 		ERR_MEM_ALLOC_FAILED,
 		ERR_FILE_READ_ERROR,
 		ERR_INFLATE_FAILED,
+
+		ERR_ICONV_CANT_OPEN,
+		ERR_ICONV_INVALID_MULTISEQUENCE_OF_CHARACTERS,
+		ERR_ICONV_INCOMPLETE_MULTIBYTE_SEQUENCE,
+		ERR_ICONV_NOT_ENOUGH_SPACE_OF_BUFFER_TO_CONVERT,
+		ERR_ICONV_ETC,
+
 	};
 	ERR		GetLastErr(){return m_nErr;}
+	const char* GetLastErrStr(){return LastErrToStr(m_nErr);}
+	const char* LastErrToStr(ERR nERR);
 
-	enum SIGNATURE							///<  zip file signature
+	enum SIGNATURE							///<  zip file signature - little endian
 	{
-		SIG_ERR								= 0x00,
+		SIG_ERROR							= 0x00,
 		SIG_EOF								= 0x01,
 		SIG_ALZ_FILE_HEADER					= 0x015a4c41,	///<  ALZ 0x01
 		SIG_LOCAL_FILE_HEADER				= 0x015a4c42,	///<  BLZ 0x01
@@ -366,8 +401,8 @@ private :
 		EXTRACT_TYPE nType;			///<  대상이 파일인가  메모리 인가..
 		FILE*		fp;				///<  ET_FILE 일 경우 대상 FILE*
 		BYTE*		buf;			///<  ET_MEM 일 경우 대상 포인터
-		DWORD		bufsize;		///<  ET_MEM 일 경우 대상 버퍼의 크기
-		DWORD		bufpos;			///<  ET_MEM 일 경우 대상 버퍼에 쓰고 있는 위치
+		UINT32		bufsize;		///<  ET_MEM 일 경우 대상 버퍼의 크기
+		UINT32		bufpos;			///<  ET_MEM 일 경우 대상 버퍼에 쓰고 있는 위치
 	};
 	int			WriteToDest(SExtractDest* dest, BYTE* buf, int nSize);
 
@@ -393,7 +428,7 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 	INT64		FTell();
 	BOOL		FEof();
 	BOOL		FSeek(INT64 offset);
-	BOOL		FRead(void* buffer, DWORD nBytesToRead, int* pTotRead=NULL);
+	BOOL		FRead(void* buffer, UINT32 nBytesToRead, int* pTotRead=NULL);
 
 	enum		{MAX_FILES=1000};								///< 처리 가능한 분할 압축 파일 수.
 	enum		{MULTIVOL_TAIL_SIZE=16,MULTIVOL_HEAD_SIZE=8};	///< 분할 압축시 꼴랑지, 헤더 크기 
@@ -405,21 +440,26 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 		int		nMultivolTailSize;
 	};
 
-	SFile		m_files[MAX_FILES];								///< 분할 파일 저장 array - 무식한가?
-	int			m_nCurFile;										///< m_files 에서 현재 처리중인 파일의 위치.
-	int			m_nFileCount;									///< 분할 파일 갯수..
-	INT64		m_nVirtualFilePos;								///< 멀티볼륨에서의 가상의 위치
-	INT64		m_nCurFilePos;									///< 현재 파일의 물리적 위치.
-	BOOL		m_bIsEOF;										///< 파일의 끝까지 (분할 파일 포함해서) 왔나?
+	SFile		m_files[MAX_FILES];					///< 분할 파일 저장 array - 무식한가?
+	int			m_nCurFile;							///< m_files 에서 현재 처리중인 파일의 위치.
+	int			m_nFileCount;						///< 분할 파일 갯수..
+	INT64		m_nVirtualFilePos;					///< 멀티볼륨에서의 가상의 위치
+	INT64		m_nCurFilePos;						///< 현재 파일의 물리적 위치.
+	BOOL		m_bIsEOF;							///< 파일의 끝까지 (분할 파일 포함해서) 왔나?
 
 
 private :
-	FileList			m_fileList;								///< 압축파일 내의 파일 목록
+	FileList			m_fileList;					///< 압축파일 내의 파일 목록
 	ERR					m_nErr;
-	FileList::iterator	m_posCur;								///< 현재 파일
+	FileList::iterator	m_posCur;					///< 현재 파일
 	_UnAlzCallback*		m_pFuncCallBack;
 	void*				m_pCallbackParam;
 	BOOL				m_bHalt;
+
+#ifdef _UNALZ_ICONV
+	char				m_szToCodepage[256];		///< codepage 
+	char				m_szFromCodepage[256];		///< "CP949"
+#endif
 };
 }
 

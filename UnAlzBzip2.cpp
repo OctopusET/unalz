@@ -27,11 +27,7 @@ typedef struct {
 }
 MybzFile;
 
-#define BZ_SETERR(eee)                    \
-{                                         \
-   if (bzerror != NULL) *bzerror = eee;   \
-   if (bzf != NULL) bzf->lastErr = eee;   \
-}
+#define BZ_SETERR(eee){if (bzerror != NULL) *bzerror = eee;if (bzf != NULL) bzf->lastErr = eee;}
 
 
 

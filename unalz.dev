@@ -9,7 +9,7 @@ CppCompiler=-D__GNUWIN32__ -W -DWIN32 -DNDEBUG -D_CONSOLE -D_MBCS_@@_
 Includes=
 Linker=-lkernel32 -luser32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32 -lkernel32 -luser32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32_@@_
 Libs=
-UnitCount=32
+UnitCount=31
 Folders=bzip2,main,unalz,zlib
 ObjFiles=
 PrivateResource=
@@ -230,16 +230,6 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit21]
-FileName=zlib\uncompr.c
-Folder=zlib
-Compile=1
-CompileCpp=0
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit22]
 FileName=zlib\ZCONF.H
 Folder=zlib
 Compile=1
@@ -249,7 +239,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit23]
+[Unit22]
 FileName=zlib\ZLIB.H
 Folder=zlib
 Compile=1
@@ -259,7 +249,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit24]
+[Unit23]
 FileName=zlib\zutil.c
 Folder=zlib
 Compile=1
@@ -269,7 +259,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit25]
+[Unit24]
 FileName=zlib\ZUTIL.H
 Folder=zlib
 Compile=1
@@ -279,7 +269,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit26]
+[Unit25]
 FileName=bzip2\blocksort.c
 Folder=bzip2
 Compile=1
@@ -289,7 +279,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit27]
+[Unit26]
 FileName=bzip2\bzlib.h
 Folder=bzip2
 Compile=1
@@ -299,7 +289,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit28]
+[Unit27]
 FileName=bzip2\bzlib_private.h
 Folder=bzip2
 Compile=1
@@ -309,7 +299,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit29]
+[Unit28]
 FileName=bzip2\compress.c
 Folder=bzip2
 Compile=1
@@ -319,7 +309,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit30]
+[Unit29]
 FileName=bzip2\crctable.c
 Folder=bzip2
 Compile=1
@@ -329,8 +319,18 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit31]
+[Unit30]
 FileName=bzip2\huffman.c
+Folder=bzip2
+Compile=1
+CompileCpp=0
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit31]
+FileName=bzip2\randtable.c
 Folder=bzip2
 Compile=1
 CompileCpp=0
