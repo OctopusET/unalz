@@ -7,7 +7,7 @@ void Usage()
 {
 	printf("\n");
 #ifdef _UNALZ_ICONV
-		printf("USAGE : unalz [-utf8 | -cp949] sourcefile.alz [dest path] \n");
+		printf("USAGE : unalz [ -utf8 | -cp949 | -euc-kr ] sourcefile.alz [dest path] \n");
 #	ifdef _UNALZ_UTF8
 		printf("        -utf8  : convert filename's codepage to UTF-8 (default)\n");
 		printf("        -cp949 : convert filename's codepage to CP949\n");
@@ -71,8 +71,8 @@ int main(int argc, char* argv[])
 //	printf("unalz v0.20 (2004/10/22) \n");
 //	printf("unalz v0.22 (2004/10/27) \n");
 //	printf("unalz v0.23 (2004/10/30) \n");
-	printf("unalz v0.30 (2004/11/14) \n");
-	printf("copyright(C) 2004 http://www.kipple.pe.kr\n");
+	printf("unalz v0.31 (2004/11/27) \n");
+	printf("Copyright(C) 2004 koder (http://www.kipple.pe.kr) \n");
 
 	if(argc<2)
 	{
@@ -123,9 +123,16 @@ int main(int argc, char* argv[])
 	// 파일 열기
 	if(unalz.Open(source)==FALSE)
 	{
-		printf("file open error : %s\n", source);
-		printf("err code(%d) (%s)\n", unalz.GetLastErr(), unalz.GetLastErrStr());
-		return 0;
+		if(unalz.GetLastErr()==CUnAlz::ERR_CORRUPTED_FILE)
+		{
+			printf("It's corrupted file.\n", source);		// 그냥 계속 풀기..
+		}
+		else
+		{
+			printf("file open error : %s\n", source);
+			printf("err code(%d) (%s)\n", unalz.GetLastErr(), unalz.GetLastErrStr());
+			return 0;
+		}
 	}
 
 
@@ -142,10 +149,12 @@ int main(int argc, char* argv[])
 	unalz.SetCallback(UnAlzCallback, (void*)NULL);
 	if(unalz.ExtractAll(destpath)==FALSE)
 	{
+		printf("\n");
 		printf("extract %s to %s failed.\n", source, destpath);
 		printf("err code(%d) (%s)\n", unalz.GetLastErr(), unalz.GetLastErrStr());
 	}
 	printf("\ndone..\n");
+
 
 	return 0;
 }

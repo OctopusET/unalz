@@ -27,7 +27,7 @@
 //// byte-order : little to host                                        ////
 ////////////////////////////////////////////////////////////////////////////
 
-#ifdef _WIN32		// little to little
+#if defined(_WIN32) ||defined(__CYGWIN__)		// little to little
 	inline UINT16	unalz_le16toh(UINT16 a){return a;}
 	inline UINT32	unalz_le32toh(UINT32 a){return a;}
 	inline UINT64	unalz_le64toh(UINT64 a){return a;}
@@ -86,6 +86,7 @@ static const char* errorstrtable[]=
 {
 	"no error",										// ERR_NOERR
 	"can't open file",								// ERR_CANT_OPEN_FILE
+	"corrupted file",								// ERR_CORRUPTED_FILE
 	"can't read signature",							// ERR_CANT_READ_SIG
 	"can't read file",								// ERR_CANT_READ_FILE
 	"error at read header",							// ERR_AT_READ_HEADER
@@ -97,7 +98,7 @@ static const char* errorstrtable[]=
 	"invalid filecomment size",						// ERR_INVALID_FILECOMMENT_SIZE,
 	"cant' read header",							// ERR_CANT_READ_HEADER,
 	"memory allocation failed",						// ERR_MEM_ALLOC_FAILED,
-	"file read eror",								// ERR_FILE_READ_ERROR,
+	"file read error",								// ERR_FILE_READ_ERROR,
 	"inflate failed",								// ERR_INFLATE_FAILED,
 									
 	"iconv-can't open iconv",						// ERR_ICONV_CANT_OPEN,
@@ -224,6 +225,7 @@ BOOL CUnAlz::Open(const char* szPathName)
 		}
 		if(sig==SIG_ERROR)
 		{
+			m_nErr = ERR_CORRUPTED_FILE;
 			return FALSE;						// 깨진 파일..
 		}
 
@@ -233,8 +235,9 @@ BOOL CUnAlz::Open(const char* szPathName)
 		else if(sig==SIG_ENDOF_CENTRAL_DIRECTORY_RECORD) ret = ReadEndofCentralDirectoryRecord();
 		else
 		{
-			// 미구현된 signature
+			// 미구현된 signature ? 깨진 파일 ?
 			ASSERT(0);
+			m_nErr = ERR_CORRUPTED_FILE;
 			return FALSE;
 		}
 		
@@ -325,20 +328,21 @@ BOOL CUnAlz::ReadLocalFileheader()
 	}
 
 	// ALZ 확장..
-	if( (zipHeader.head.fileSizeByte & (SHORT)1) != 0){
-		m_bIsEncrypted = TRUE;
+	if( (zipHeader.head.fileDescriptor & (SHORT)1) != 0){
+		m_bIsEncrypted = TRUE;									// 하나라도 암호 걸렸으면 세팅한다.
 	}
-	if( (zipHeader.head.fileSizeByte & (SHORT)8) != 0){
+	if( (zipHeader.head.fileDescriptor & (SHORT)8) != 0){
 		m_bIsDataDescr = TRUE;
 	}
 	
-	int byteLen = zipHeader.head.fileSizeByte/0x10;
+	int byteLen = zipHeader.head.fileDescriptor/0x10;
 
 	if(byteLen)
 	{
 		FRead(&(zipHeader.compressionMethod),	sizeof(zipHeader.compressionMethod));
 		FRead(&(zipHeader.unknown3),			sizeof(zipHeader.unknown3));
-		FRead(&(zipHeader.maybeCRC),			sizeof(zipHeader.maybeCRC));
+		FRead(&(zipHeader.unknown4),			sizeof(zipHeader.unknown4));
+		FRead(&(zipHeader.passwordCRC),			sizeof(zipHeader.passwordCRC));
 
 		FRead(&(zipHeader.compressedSize), byteLen);
 		FRead(&(zipHeader.uncompressedSize),  byteLen);			// 압축 사이즈가 없다.
@@ -348,7 +352,6 @@ BOOL CUnAlz::ReadLocalFileheader()
     zipHeader.head.fileNameLength   =   unalz_le16toh(zipHeader.head.fileNameLength);
     zipHeader.compressedSize        =   unalz_le64toh(zipHeader.compressedSize);
     zipHeader.uncompressedSize      =   unalz_le64toh(zipHeader.uncompressedSize); 
-    zipHeader.maybeCRC			    =	unalz_le32toh(zipHeader.maybeCRC);
 
 	// FILE NAME
 	zipHeader.fileName = (char*)malloc(zipHeader.head.fileNameLength+1);
@@ -373,7 +376,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 	size_t size;
 	char inbuf[ICONV_BUF_SIZE];
 	char outbuf[ICONV_BUF_SIZE];
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__CYGWIN__)
 	const char *inptr = inbuf;
 #else
 	char *inptr = inbuf;
@@ -436,7 +439,8 @@ BOOL CUnAlz::ReadLocalFileheader()
 	}
 	*/
 
-	if(IsEncrypted()) FRead(zipHeader.encChk, ENCR_HEADER_LEN);  // xf86
+	if(IsEncryptedFile(zipHeader.head.fileDescriptor)) 
+		FRead(zipHeader.encChk, ENCR_HEADER_LEN);  // xf86
 
 	// SKIP FILE DATA
 	zipHeader.dwFileDataPos = FTell();						// data 의 위치 저장하기..
@@ -846,7 +850,7 @@ BOOL CUnAlz::DigPath(const char* szPathName)
 /// @return  
 /// @date    2004-03-06 오후 11:03:26
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOL CUnAlz::IsFolder(LPCSTR szPathName)
+BOOL CUnAlz::IsFolder(const CHAR* szPathName)
 {
 #ifdef _WIN32
 	UINT32 dwRet;
@@ -1009,6 +1013,9 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 	INT64   bufLen = BUF_LEN;
 	INT64	nWritten = 0;
 	BOOL	bHalt = FALSE;
+	BOOL	bIsEncrypted = 	IsEncryptedFile();		// 암호걸린 파일인가?
+
+
 
 	// 위치 잡고.
 	FSeek(file.dwFileDataPos);
@@ -1022,8 +1029,9 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 		{
 			break;
 		}
-		
-		CryptDecodeBuffer((int)read, (CHAR *)buf); // xf86
+
+		if(bIsEncrypted)
+			DecryptingData((int)read, buf); // xf86
 
 		WriteToDest(dest, buf, (int)read);
 		//fwrite(buf, read, 1, fp);
@@ -1166,6 +1174,7 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 	UINT		iRead = 0;
 	INT64	nWritten = 0;
 	BOOL	bHalt = FALSE;
+	BOOL	bIsEncrypted = 	IsEncryptedFile();		// 암호걸린 파일인가?
 
 	memset(&stream, 0, sizeof(stream));
 
@@ -1196,7 +1205,8 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 				goto END;
 			}
 
-			CryptDecodeBuffer(uReadThis, (CHAR *)pInBuf); // xf86
+			if(bIsEncrypted)
+				DecryptingData(uReadThis, pInBuf); // xf86
 			
 			nRestReadCompressed -= uReadThis;
 			stream.next_in = pInBuf;
@@ -1421,6 +1431,7 @@ BOOL CUnAlz::FRead(void* buffer, UINT32 nBytesToRead, int* pTotRead )
 		{
 			m_bIsEOF = TRUE;return FALSE;
 		}
+
 #else
 		nNumOfBytesRead = fread(((BYTE*)buffer)+dwTotRead, 1,dwRead ,m_files[m_nCurFile].fp);
 		if(nNumOfBytesRead<=0) 
@@ -1486,12 +1497,13 @@ const char* CUnAlz::LastErrToStr(ERR nERR)
 // by xf86
 BOOL	CUnAlz::chkValidPassword()
 {
-	if (IsEncrypted()) {
+	if(IsEncryptedFile())
+	{
 		if (getPasswordLen() == 0){
 			m_nErr = ERR_PASSWD_NOT_SET;
 			return FALSE;
 		}
-		CryptInitKeys();
+		InitCryptKeys(m_szPasswd);
 		if(CryptCheck(m_posCur->encChk) == FALSE){
 			m_nErr = ERR_INVALID_PASSWD;
 			return FALSE;
@@ -1501,6 +1513,8 @@ BOOL	CUnAlz::chkValidPassword()
 }
 
 
+/*
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //	from CZipArchive
 //	Copyright (C) 2000 - 2004 Tadeusz Dracz
@@ -1509,7 +1523,6 @@ BOOL	CUnAlz::chkValidPassword()
 //
 //	it's under GPL.
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void CUnAlz::CryptDecodeBuffer(UINT32 uCount, CHAR *buf)
 {
 	if (IsEncrypted())
@@ -1569,3 +1582,122 @@ UINT32 CUnAlz::CryptCRC32(UINT32 l, CHAR c)
 	return CRC_TABLE[(l ^ c) & 0xff] ^ (l >> 8);
 }
 
+*/
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          암호걸린 파일인지 여부
+/// @param   fileDescriptor  
+/// @return  
+/// @date    2004-11-27 오후 11:25:32
+////////////////////////////////////////////////////////////////////////////////////////////////////
+BOOL CUnAlz::IsEncryptedFile(BYTE fileDescriptor)
+{
+	return fileDescriptor&0x01;
+}
+BOOL CUnAlz::IsEncryptedFile()
+{
+	return m_posCur->head.fileDescriptor&0x01;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          암호로 키 초기화
+/// @param   szPassword  
+/// @return  
+/// @date    2004-11-27 오후 11:04:01
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void CUnAlz::InitCryptKeys(const CHAR* szPassword)
+{
+	m_key[0] = 305419896;
+	m_key[1] = 591751049;
+	m_key[2] = 878082192;
+
+	int i;
+	for(i=0;i<(int)strlen(szPassword);i++)
+	{
+		UpdateKeys(szPassword[i]);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          데이타로 키 업데이트하기
+/// @param   c  
+/// @return  
+/// @date    2004-11-27 오후 11:04:09
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void CUnAlz::UpdateKeys(BYTE c)
+{
+	m_key[0] = CRC32(m_key[0], c);
+	m_key[1] = m_key[1]+(m_key[0]&0x000000ff);
+	m_key[1] = m_key[1]*134775813+1;
+	m_key[2] = CRC32(m_key[2],m_key[1]>>24);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          암호가 맞는지 헤더 체크하기 
+/// @param   buf  
+/// @return  
+/// @date    2004-11-27 오후 11:04:24
+////////////////////////////////////////////////////////////////////////////////////////////////////
+BOOL CUnAlz::CryptCheck(BYTE* buf)
+{
+	int i;
+	BYTE c;
+	for(i=0;i<ENCR_HEADER_LEN;i++)
+	{
+		c = buf[i] ^ DecryptByte();
+		UpdateKeys(c);
+		buf[i] = c;
+	}
+
+	if (IsDataDescr()) // Data descriptor present
+		return (m_posCur->head.fileTimeDate >> 8) == c;
+	else
+		return (m_posCur->passwordCRC) == c;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          키에서 데이타 추출
+/// @return  
+/// @date    2004-11-27 오후 11:05:36
+////////////////////////////////////////////////////////////////////////////////////////////////////
+BYTE CUnAlz::DecryptByte()
+{
+	UINT16 temp;
+	temp = m_key[2] | 2;
+	return (temp * (temp^1))>>8;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          데이타 압축 풀기
+/// @param   nSize  
+/// @param   data  
+/// @return  
+/// @date    2004-11-27 오후 11:03:30
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void CUnAlz::DecryptingData(int nSize, BYTE* data)
+{
+	BYTE* p = data;
+	BYTE temp;
+
+	while(nSize)
+	{
+		temp = *p ^ DecryptByte();
+		UpdateKeys(temp);
+		*p = temp;
+		nSize--;
+		p++;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          CRC 테이블 참조
+/// @param   l  
+/// @param   c  
+/// @return  
+/// @date    2004-11-27 오후 11:14:16
+////////////////////////////////////////////////////////////////////////////////////////////////////
+UINT32 CUnAlz::CRC32(UINT32 l, BYTE c)
+{
+	const ULONG *CRC_TABLE = get_crc_table();
+	return CRC_TABLE[(l ^ c) & 0xff] ^ (l >> 8);
+}

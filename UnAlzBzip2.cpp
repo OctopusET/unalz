@@ -108,6 +108,7 @@ int CUnAlz::BZ2_bzRead(int* bzerror, MYBZFILE* b, void* buf, int len)
 {
    Int32   n, ret;
    MybzFile* bzf = (MybzFile*)b;
+   BOOL	bIsEncrypted = 	bzf->handle->IsEncryptedFile();		// 암호걸린 파일인가?
 
    BZ_SETERR(BZ_OK);
 
@@ -131,7 +132,8 @@ int CUnAlz::BZ2_bzRead(int* bzerror, MYBZFILE* b, void* buf, int len)
       if (bzf->strm.avail_in == 0 && !bzf->handle->FEof()) {
          bzf->handle->FRead(bzf->buf, sizeof(UChar)*BZ_MAX_UNUSED, &n);
 
-		 bzf->handle->CryptDecodeBuffer(n, (CHAR *)bzf->buf); // xf86 NOT tested -> tested
+		 if(bIsEncrypted)
+			bzf->handle->DecryptingData(n, (BYTE *)bzf->buf); // xf86 NOT tested -> tested
 
          if(n==0)
             { BZ_SETERR(BZ_IO_ERROR); return 0; };
