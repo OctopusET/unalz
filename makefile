@@ -18,7 +18,7 @@ all:
 	@echo ""
 	@echo " posix             : POSIX system (FreeBSD/linux/OSX/sparc)"
 	@echo " posix-utf8        : POSIX with utf8 filesystem(OSX)"
-	@echo " posix-noiconv     : POSIX without libiconv (CP949 only)"
+	@echo " posix-noiconv     : POSIX without libiconv (MINGW32,CP949 file system)"
 
 	@echo ""
 	@echo " and 'clean' for clean"
