@@ -10,9 +10,11 @@ void Usage()
 #	ifdef _UNALZ_UTF8
 		printf("        -utf8  : convert filename's codepage to UTF-8 (default)\n");
 		printf("        -cp949 : convert filename's codepage to CP949\n");
+		printf("        -euc-kr: convert filename's codepage to EUC-KR\n");
 #	else
 		printf("        -utf8  : convert filename's codepage to UTF-8\n");
 		printf("        -cp949 : convert filename's codepage to CP949 (default)\n");
+		printf("        -euc-kr: convert filename's codepage to EUC-KR\n");
 #	endif // _UNALZ_UTF8
 #else		// no iconv
 	printf("USAGE : unalz sourcefile.alz [dest path] \n");
@@ -22,42 +24,52 @@ void Usage()
 void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* param, BOOL* bHalt)
 {
 	// progress
-	char	buf[1000];
+	static char szFileName[1024]={0};
 	INT64	percent;
 	static  INT64 nPrevPercent = -1;
-	int		buflen;
-	int		i;
 
 	// 파일명 출력..
 	if(szMessage)
 	{
-		//printf("\n");
-		printf("unalziiiing : %s	", szMessage);
+		printf("\n");
+#ifdef _WIN32
+		sprintf(szFileName, "unalziiiing : %s (%I64dbytes) ", szMessage, nRange);
+#else
+		sprintf(szFileName, "unalziiiing : %s (%lldbytes) ", szMessage, nRange);
+#endif
+		printf("%s", szFileName);
+		fflush(stdout);
 		nPrevPercent = -1;
-		return ;
+		return;
 	}
 
 	percent = nCurrent*100/nRange;
 
-	if(nPrevPercent==percent) return; 	// 너무 잦은 업데이트 방지..
+	if(nPrevPercent/10==percent/10) return; 	// 너무 잦은 업데이트 방지..
 	nPrevPercent = percent;
-#ifdef _WIN32
-	sprintf(buf, "%I64d/%I64d (%I64d%%)", nCurrent, nRange, percent);
-#else
-	sprintf(buf, "%d/%d (%d%%)", (int)nCurrent, (int)nRange, (int)percent);		// int64 를 출력할라면 어찌해야 되는지?
-#endif
-	puts(buf);
-	buflen = strlen(buf);
+
+	printf(".");
 	fflush(stdout);
 
-	for(i=0;i<buflen;i++) printf("\b");
+	/*
+	char	buf[1024];
+#ifdef _WIN32
+	sprintf(buf, "\r%s %I64d/%I64d (%I64d%%)", szFileName, nCurrent, nRange, percent);
+#else
+//	sprintf(buf, "\r%s %d/%d (%d%%)", szMessage, (int)nCurrent, (int)nRange, (int)percent);		// int64 를 출력할라면 어찌해야 되는지?
+	sprintf(buf, "\r%s %lld/%lld (%lld%%)", szFileName, nCurrent, Range, percent);
+#endif
+	puts(buf);
+	fflush(stdout);
+	*/
 }
 
 
 int main(int argc, char* argv[])
 {
 //	printf("unalz v0.20 (2004/10/22) \n");
-	printf("unalz v0.22 (2004/10/28) \n");
+//	printf("unalz v0.22 (2004/10/27) \n");
+	printf("unalz v0.23 (2004/10/30) \n");
 	printf("copyright(C) 2004 http://www.kipple.pe.kr\n");
 
 	if(argc<2)
@@ -82,6 +94,11 @@ int main(int argc, char* argv[])
 	else if(strcmp(argv[count], "-cp949")==0)
 	{
 		destcodepage = "CP949";				// cp959 
+		count++;
+	}
+	else if(strcmp(argv[count], "-euc-kr")==0)
+	{
+		destcodepage = "EUC-KR";			// EUC-KR
 		count++;
 	}
 	if(count>=argc)	{Usage();return 0;}		// 옵션만 쓰면 어쩌라고..

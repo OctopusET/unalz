@@ -7,7 +7,6 @@ CFLAGS = -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 LDFLAGS=
 #CFLAGS = -DDARWIN
 #LDFLAGS=-liconv
-SRCS=main.cpp UnAlz.cpp UnAlzBz2decompress.c UnAlzBzip2.cpp UnAlzbzlib.c
 
 #nothing:
 all:
@@ -30,6 +29,7 @@ all:
 posix: unalz
 	$(CPP) -c UnAlz.cpp  -c main.cpp $(CFLAGS) -D_UNALZ_ICONV
 	$(CPP) $(LINKOBJ) $(LDFLAGS) -liconv -o $(BIN) 
+
 
 posix-utf8: unalz
 	$(CPP) -c UnAlz.cpp -c main.cpp $(CFLAGS) -D_UNALZ_ICONV -D_UNALZ_UTF8

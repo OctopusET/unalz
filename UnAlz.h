@@ -38,6 +38,7 @@
 				- 빅엔디안, 코드페이지 변환 관련 소스 정리
 	2004/10/25	- by yongari : __LP64__ , 빅엔디안(le64toh/le132oh/le16toh) 관련 이슈 수정
 	2004/10/26	- BSD/LINUX : byte-order, libiconv 이슈 정리 
+	2004/10/30	- 정리 & 정리.. 
 
   
   할일 : ( * 표는 한거 )
@@ -127,7 +128,8 @@ using namespace std;
 #endif
 #ifndef ASSERT
 #	include <assert.h>
-#	define ASSERT(x) assert(x)
+//#	define ASSERT(x) assert(x)
+#	define ASSERT(x) {printf("assert file:%s line:%d\n", __FILE__, __LINE__);}
 #endif
 
 
@@ -142,7 +144,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[] = "CUnAlz0.21";
+static const char UNALZ_VERSION[] = "CUnAlz0.23";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004 hardkoder@gmail.com";
 
 

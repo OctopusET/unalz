@@ -2,8 +2,7 @@
 
 PROG=	unalz
 NOMAN=
-SRCS=	main.cpp UnAlz.cpp UnAlzBz2decompress.c UnAlzBzip2.cpp \
-	UnAlzbzlib.c
+SRCS=	main.cpp UnAlz.cpp UnAlzBz2decompress.c UnAlzBzip2.cpp UnAlzbzlib.c
 LDADD+=	-lz -lbz2 -liconv -lstdc++
 
 .include <bsd.prog.mk>
