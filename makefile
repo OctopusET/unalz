@@ -1,29 +1,65 @@
 CPP = g++
 CC  = gcc
-OBJ = main.o UnAlz.o UnAlzBz2decompress.o UnAlzBzip2.o UnAlzbzlib.o zlib/adler32.o zlib/crc32.o zlib/infblock.o zlib/infcodes.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/infutil.o zlib/zutil.o bzip2/blocksort.o bzip2/compress.o bzip2/crctable.o bzip2/huffman.o bzip2/randtable.o
+OBJ = UnAlzBz2decompress.o UnAlzBzip2.o UnAlzbzlib.o zlib/adler32.o zlib/crc32.o zlib/infblock.o zlib/infcodes.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/infutil.o zlib/zutil.o bzip2/blocksort.o bzip2/compress.o bzip2/crctable.o bzip2/huffman.o bzip2/randtable.o
 LINKOBJ = main.o UnAlz.o UnAlzBz2decompress.o UnAlzBzip2.o UnAlzbzlib.o zlib/adler32.o zlib/crc32.o zlib/infblock.o zlib/infcodes.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/infutil.o zlib/zutil.o bzip2/blocksort.o bzip2/compress.o bzip2/crctable.o bzip2/huffman.o bzip2/randtable.o
 BIN  = unalz
-CFLAGS =
+CFLAGS = -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 
+LDFLAGS=
+#CFLAGS = -DDARWIN
+#LDFLAGS=-liconv
+SRCS=main.cpp UnAlz.cpp UnAlzBz2decompress.c UnAlzBzip2.cpp UnAlzbzlib.c
 
-all: unalz
+#nothing:
+all:
+	@echo ""
+	@echo "USAGE : make TARGET_SYSTEM"
+	@echo ""
+	@echo ""
+	@echo "TARGET_SYSTEM is one of"
+	@echo ""
+	@echo " posix             : POSIX system (FreeBSD/linux/OSX/sparc)"
+	@echo " posix-utf8        : POSIX with utf8 filesystem(OSX)"
+	@echo " posix-noiconv     : POSIX without libiconv (CP949 only)"
+
+	@echo ""
+	@echo " and 'clean' for clean"
+	@echo ""
+
+
+
+posix: unalz
+	$(CPP) -c UnAlz.cpp  -c main.cpp $(CFLAGS) -D_UNALZ_ICONV
+	$(CPP) $(LINKOBJ) $(LDFLAGS) -liconv -o $(BIN) 
+
+posix-utf8: unalz
+	$(CPP) -c UnAlz.cpp -c main.cpp $(CFLAGS) -D_UNALZ_ICONV -D_UNALZ_UTF8
+	$(CPP) $(LINKOBJ) $(LDFLAGS) -liconv -o $(BIN)
+
+posix-noiconv: unalz
+	$(CPP) -c UnAlz.cpp -c main.cpp $(CFLAGS)
+	$(CPP) $(LINKOBJ) $(LDFLAGS) -o $(BIN)
+
+
 
 clean:
-	rm -f $(OBJ) $(BIN)
+	rm -f $(OBJ) $(BIN) main.o UnAlz.o
+
+
 
 $(BIN): $(OBJ)
-	$(CPP) $(LINKOBJ) -o "unalz"
+#	$(CPP) $(LINKOBJ) $(LDFLAGS) -o $(BIN)
 
-main.o: main.cpp
-	$(CPP) -c main.cpp -o main.o
+#UnAlz.o: UnAlz.cpp
+#	$(CPP) -c UnAlz.cpp -o UnAlz.o $(CFLAGS) 
 
-UnAlz.o: UnAlz.cpp
-	$(CPP) -c UnAlz.cpp -o UnAlz.o
+#main.o: main.cpp
+#	$(CPP) -c main.cpp -o main.o   $(CFLAGS) 
 
 UnAlzBz2decompress.o: UnAlzBz2decompress.c
 	$(CC) -c UnAlzBz2decompress.c -o UnAlzBz2decompress.o $(CFLAGS)
 
 UnAlzBzip2.o: UnAlzBzip2.cpp
-	$(CPP) -c UnAlzBzip2.cpp -o UnAlzBzip2.o
+	$(CPP) -c UnAlzBzip2.cpp -o UnAlzBzip2.o $(CFLAGS) 
 
 UnAlzbzlib.o: UnAlzbzlib.c
 	$(CC) -c UnAlzbzlib.c -o UnAlzbzlib.o $(CFLAGS)

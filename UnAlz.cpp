@@ -2,23 +2,107 @@
 #include "zlib/zlib.h"
 #include "bzip2/bzlib.h"
 #include "UnAlz.h"
-#ifdef _WIN32
-#include <direct.h>		// mkdir
+
+// mkdir
+#ifdef _WIN32				
+#	include <direct.h>		
 #else
-#include <sys/stat.h>
+#	include <sys/stat.h>
 #endif
+
+// le16toh 등등..
+#if (defined(__FreeBSD__) || defined(__DARWIN__))
+#	include <sys/endian.h>	
+#endif
+
+#ifdef __linux__		// __BYTE_ORDER 가져오기 
+#	include <endian.h>
+#endif
+
+#ifdef _UNALZ_ICONV			// code page support
+#	include <iconv.h>
+#endif
+
+#ifdef __linux__			// iconv.h 때문에 필요 
+#	include <errno.h>
+#endif
+
+#ifndef _WIN32				// WIN32 는 무조건 LITTLE 이니까 필요없다. 
+#	define swapint64(Data) (INT64) ( (((Data)&0x00000000000000FFLL) << 56) | (((Data)&0x000000000000FF00LL) << 40) | (((Data)&0x0000000000FF0000LL) << 24) | (((Data)&0x00000000FF000000LL) << 8)  | (((Data)&0x000000FF00000000LL) >> 8)  | (((Data)&0x0000FF0000000000LL) >> 24) | (((Data)&0x00FF000000000000LL) >> 40) | (((Data)&0xFF00000000000000LL) >> 56) )
+#	define swapint32(a)    ((((a)&0xff)<<24)+(((a>>8)&0xff)<<16)+(((a>>16)&0xff)<<8)+(((a>>24)&0xff)))
+#	define swapint16(a)    (((a)&0xff)<<8)+(((a>>8)&0xff))
+#endif
+
+
+//// byte-order : little to host ////
+
+#ifdef _WIN32		// little to little
+	inline UINT16	unalz_le16toh(UINT16 a){return a;}
+	inline UINT32	unalz_le32toh(UINT32 a){return a;}
+	inline UINT64	unalz_le64toh(UINT64 a){return a;}
+#endif
+
+#if (defined(__FreeBSD__) || defined(__DARWIN__))
+	inline UINT16	unalz_le16toh(UINT16 a){return le16toh(a);}
+	inline UINT32	unalz_le32toh(UINT32 a){return le32toh(a);}
+	inline UINT64	unalz_le64toh(UINT64 a){return le64toh(a);}
+#endif
+
+#ifdef __linux__	// 리눅스에서 little 을 host 로 바꾸는 함수를 모르겠다.. 그래서 그냥 define 된걸로 판단한다. 
+#	if __BYTE_ORDER == __BIG_ENDIAN
+	inline UINT16	unalz_le16toh(UINT16 a){return swapint16(a);}
+	inline UINT32	unalz_le32toh(UINT32 a){return swapint32(a);}
+	inline UINT64	unalz_le64toh(UINT64 a){return swapint64(a);}
+#	else		// __LITTLE_ENDIAN
+	inline UINT16	unalz_le16toh(UINT16 a){return (a);}
+	inline UINT32	unalz_le32toh(UINT32 a){return (a);}
+	inline UINT64	unalz_le64toh(UINT64 a){return (a);}
+#	endif
+#endif
+
+
 
 #ifndef MAX_PATH
-#define MAX_PATH 260
+#	define MAX_PATH 260
 #endif
 
 #ifdef _WIN32
-	#define PATHSEP "\\"
-	#define PATHSEPC '\\'
+#	define PATHSEP "\\"
+#	define PATHSEPC '\\'
 #else
-	#define PATHSEP "/"
-	#define PATHSEPC '/'
+#	define PATHSEP "/"
+#	define PATHSEPC '/'
 #endif
+
+
+
+// error string table <- CUnAlz::ERR 의 번역
+static const char* errorstrtable[]=
+{
+	"no error",										// ERR_NOERR
+	"can't open file",								// ERR_CANT_OPEN_FILE
+	"can't read signature",							// ERR_CANT_READ_SIG
+	"can't read file",								// ERR_CANT_READ_FILE
+	"error at read header",							// ERR_AT_READ_HEADER
+	"invalid filename length",						// ERR_INVALID_FILENAME_LENGTH
+	"invalid extrafield length",					// ERR_INVALID_EXTRAFIELD_LENGTH,
+	"can't read central directory structure head",	// ERR_CANT_READ_CENTRAL_DIRECTORY_STRUCTURE_HEAD, 
+	"invalid filename size",						// ERR_INVALID_FILENAME_SIZE,
+	"invalid extrafield size",						// ERR_INVALID_EXTRAFIELD_SIZE,
+	"invalid filecomment size",						// ERR_INVALID_FILECOMMENT_SIZE,
+	"cant' read header",							// ERR_CANT_READ_HEADER,
+	"memory allocation failed",						// ERR_MEM_ALLOC_FAILED,
+	"file read eror",								// ERR_FILE_READ_ERROR,
+	"inflate failed",								// ERR_INFLATE_FAILED,
+									
+	"iconv-can't open iconv",						// ERR_ICONV_CANT_OPEN,
+	"iconv-invalid multisequence of characters",	// ERR_ICONV_INVALID_MULTISEQUENCE_OF_CHARACTERS,
+	"iconv-incomplete multibyte sequence",			// ERR_ICONV_INCOMPLETE_MULTIBYTE_SEQUENCE,
+	"iconv-not enough space of buffer to convert",	// ERR_ICONV_NOT_ENOUGH_SPACE_OF_BUFFER_TO_CONVERT,
+	"iconv-etc",									// ERR_ICONV_ETC,
+};
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          ctor
@@ -37,6 +121,17 @@ CUnAlz::CUnAlz()
 	m_nVirtualFilePos = 0;
 	m_nCurFilePos = 0;
 	m_bIsEOF = FALSE;
+
+#ifdef _UNALZ_ICONV
+
+#ifdef _UNALZ_UTF8
+	strcpy(m_szToCodepage, "UTF-8") ;		// 기본적으로 utf-8
+#else 
+	strcpy(m_szToCodepage, "CP949") ;		// 기본적으로 CP949
+#endif // _UNALZ_UTF8
+
+	strcpy(m_szFromCodepage, "CP949");		// alz 는 949 만 지원
+#endif // _UNALZ_ICONV
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -58,20 +153,41 @@ void CUnAlz::SetCallback(_UnAlzCallback* pFunc, void* param)
 	m_pCallbackParam = param;
 }
 
+#ifdef _WIN32
+#ifndef __GNUWIN32__
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          파일 열기
 /// @param   szPathName  
 /// @return  
 /// @date    2004-03-06 오후 11:03:59
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef _WIN32
-/*
+#include <atlbase.h>
+#include <atlconv.h>
 BOOL CUnAlz::Open(LPCWSTR szPathName)
 {
 	USES_CONVERSION;
 	return Open(W2A(szPathName));
 }
-*/
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          대상 파일 세팅하기.
+/// @param   szFileName  
+/// @return  
+/// @date    2004-03-06 오후 11:06:20
+////////////////////////////////////////////////////////////////////////////////////////////////////
+BOOL CUnAlz::SetCurrentFile(LPCWSTR szFileName)
+{
+	USES_CONVERSION;
+	return SetCurrentFile(W2A(szFileName));
+}
+BOOL CUnAlz::IsFolder(LPCWSTR szPathName)
+{
+	UINT32 dwRet;
+	dwRet = GetFileAttributesW(szPathName);
+	if(dwRet==0xffffffff) return FALSE;
+	if(dwRet & FILE_ATTRIBUTE_DIRECTORY) return TRUE;
+	return FALSE;
+}
+#endif // __GNUWIN32__
 #endif // _WIN32
 
 BOOL CUnAlz::Open(const char* szPathName)
@@ -95,7 +211,7 @@ BOOL CUnAlz::Open(const char* szPathName)
 		{
 			break;
 		}
-		if(sig==SIG_ERR)
+		if(sig==SIG_ERROR)
 		{
 			return FALSE;						// 깨진 파일..
 		}
@@ -149,17 +265,17 @@ void CUnAlz::Close()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 CUnAlz::SIGNATURE CUnAlz::ReadSignature()
 {
-	DWORD	dwSig;
+	UINT32	dwSig;
 	if(FRead(&dwSig, sizeof(dwSig))==FALSE)
 	{
 //int pos = ftell(m_fp);
 		if(FEof())
 			return SIG_EOF;
 		m_nErr = ERR_CANT_READ_SIG;
-		return SIG_ERR;
+		return SIG_ERROR;
 	}
 
-	return (SIGNATURE)dwSig;
+	return (SIGNATURE)unalz_le32toh(dwSig);		// little to host;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +326,10 @@ BOOL CUnAlz::ReadLocalFileheader()
 		FRead(&(zipHeader.uncompressedSize),  byteLen);			// 압축 사이즈가 없다.
 	}
 
+	// little to system 
+    zipHeader.head.fileNameLength   =   unalz_le16toh(zipHeader.head.fileNameLength);
+    zipHeader.compressedSize        =   unalz_le64toh(zipHeader.compressedSize);
+    zipHeader.uncompressedSize      =   unalz_le64toh(zipHeader.uncompressedSize); 
 
 	// FILE NAME
 	zipHeader.fileName = (char*)malloc(zipHeader.head.fileNameLength+1);
@@ -220,6 +340,68 @@ BOOL CUnAlz::ReadLocalFileheader()
 	}
 	FRead(zipHeader.fileName, zipHeader.head.fileNameLength);
 	zipHeader.fileName[zipHeader.head.fileNameLength] = (CHAR)NULL;
+
+
+#ifdef _UNALZ_ICONV		// codepage convert
+
+	if(strlen(m_szToCodepage))
+	{
+
+	#define ICONV_BUF_SIZE	(260*6)			// utf8 은 최대 6byte 
+	size_t ileft, oleft;
+	iconv_t cd;
+	size_t iconv_result;
+	size_t size;
+	char inbuf[ICONV_BUF_SIZE];
+	char outbuf[ICONV_BUF_SIZE];
+#ifdef __FreeBSD__
+	const char *inptr = inbuf;
+#else
+	char *inptr = inbuf;
+#endif
+	char *outptr = outbuf;
+	
+	size = strlen(zipHeader.fileName)+1;
+	strncpy(inbuf, zipHeader.fileName, size);
+	ileft = size;
+	oleft = sizeof(outbuf);
+	
+	cd = iconv_open(m_szToCodepage, m_szFromCodepage);		// 보통 "CP949" 에서 "UTF-8" 로 
+	iconv(cd, NULL, NULL, NULL, NULL);
+	if( cd == (iconv_t)(-1)) 
+	{
+		m_nErr = ERR_ICONV_CANT_OPEN;		// printf("Converting Error : Cannot open iconv");
+		return FALSE;
+	}
+	else
+	{
+		iconv_result = iconv(cd, &inptr, &ileft, &outptr, &oleft);
+		
+		if(iconv_result== (size_t)(-1))		// iconv 실패..
+		{
+			if (errno == EILSEQ) 
+				m_nErr = ERR_ICONV_INVALID_MULTISEQUENCE_OF_CHARACTERS; // printf("Invalid Multibyte Sequence of Characters");
+			else if (errno == EINVAL) 
+				m_nErr = ERR_ICONV_INCOMPLETE_MULTIBYTE_SEQUENCE; //printf("Incomplete  multibyte sequence");
+			else if (errno != E2BIG) 
+				m_nErr = ERR_ICONV_NOT_ENOUGH_SPACE_OF_BUFFER_TO_CONVERT;	// printf("Not enough space of buffer to convert");
+			else 
+				m_nErr = ERR_ICONV_ETC;
+			iconv_close(cd);
+			return FALSE;
+		} 
+		else 
+		{
+			outbuf[ICONV_BUF_SIZE-oleft] = 0;
+			strcpy(zipHeader.fileName, outbuf);
+			// printf("\n  Converted File Name : %s", outbuf);
+		}
+		
+		iconv_close(cd);
+    }
+
+	}
+#endif
 
 	/*
 	// EXTRA FIELD LENGTH
@@ -345,21 +527,6 @@ BOOL CUnAlz::ReadEndofCentralDirectoryRecord()
 	return TRUE;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-///          대상 파일 세팅하기.
-/// @param   szFileName  
-/// @return  
-/// @date    2004-03-06 오후 11:06:20
-////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef _WIN32
-/*
-BOOL CUnAlz::SetCurrentFile(LPCWSTR szFileName)
-{
-	USES_CONVERSION;
-	return SetCurrentFile(W2A(szFileName));
-}
-*/
-#endif // _WIN32
 
 BOOL CUnAlz::SetCurrentFile(const char* szFileName)
 {
@@ -431,6 +598,17 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	if(szDestFileName) strcat(szDestPathFileName, szDestFileName);
 	else strcat(szDestPathFileName, m_posCur->fileName);
 
+#ifndef _WIN32 
+	{
+		char* p = szDestPathFileName;			// 경로 delimiter 바꾸기 
+		while(*p)
+		{
+			if(*p=='\\') *p='/';
+			p++;
+		}
+	}
+#endif
+
 	// 압축풀 대상 ( 파일 )
 	dest.nType = ET_FILE;
 	dest.fp = fopen(szDestPathFileName, "wb");
@@ -441,6 +619,7 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 		dest.fp = fopen(szDestPathFileName, "wb");
 	}
 
+#ifdef _WIN32
 	if(dest.fp==NULL) 
 	{
 		ASSERT(0); 
@@ -452,12 +631,12 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 		}
 		return FALSE;
 	}
-
+#endif
 	// CALLBACK 세팅
 	if(m_pFuncCallBack) m_pFuncCallBack(m_posCur->fileName, 0,0,m_pCallbackParam, NULL);
 
 	ret = ExtractTo(&dest);
-	fclose(dest.fp);
+	if(dest.fp!=NULL)fclose(dest.fp);
 	return ret;
 }
 
@@ -625,10 +804,8 @@ BOOL CUnAlz::DigPath(const char* szPathName)
 #ifdef _WIN32
 			_mkdir(path);
 #else
-//printf("mkdir:%s\n", path);
 			mkdir(path,  S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 #endif
-
 		token = strtok( NULL, seps );
 	}
 
@@ -646,7 +823,7 @@ BOOL CUnAlz::DigPath(const char* szPathName)
 BOOL CUnAlz::IsFolder(LPCSTR szPathName)
 {
 #ifdef _WIN32
-	DWORD dwRet;
+	UINT32 dwRet;
 	dwRet = GetFileAttributesA(szPathName);
 	if(dwRet==0xffffffff) return FALSE;
 	if(dwRet & FILE_ATTRIBUTE_DIRECTORY) return TRUE;
@@ -663,19 +840,6 @@ BOOL CUnAlz::IsFolder(LPCSTR szPathName)
 	return FALSE;
 #endif
 }
-#ifdef _WIN32
-/*
-BOOL CUnAlz::IsFolder(LPCWSTR szPathName)
-{
-	DWORD dwRet;
-	dwRet = GetFileAttributesW(szPathName);
-	if(dwRet==0xffffffff) return FALSE;
-	if(dwRet & FILE_ATTRIBUTE_DIRECTORY) return TRUE;
-	return FALSE;
-}
-*/
-#endif // _WIN32
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          압축을 풀 대상에 압축을 푼다.
@@ -727,7 +891,7 @@ BOOL CUnAlz::ExtractBzip2_bak(FILE* fp, SLocalFileHeader& file)
 	//int			err;
 	int			flush=Z_SYNC_FLUSH;
 	BOOL		ret = FALSE;
-	DWORD crc = 0xffffffff;
+	UINT32 crc = 0xffffffff;
 
 	//BYTE		temp[100];
 	
@@ -968,7 +1132,7 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 	int			flush=Z_SYNC_FLUSH;
 	BOOL		ret = FALSE;
 	INT64		nRestReadCompressed;
-	DWORD		dwCRC32= 0;
+	UINT32		dwCRC32= 0;
 	INT64		rest_read_uncompressed;
 	UINT		iRead = 0;
 	INT64	nWritten = 0;
@@ -1075,7 +1239,7 @@ BOOL CUnAlz::FOpen(const char* szPathName)
 	char* temp = strdup(szPathName);			// 파일명 복사..
 	int	  i;
 	int	  nLen = strlen(szPathName);
-	DWORD dwFileSizeLow,dwFileSizeHigh;
+	UINT32 dwFileSizeLow,dwFileSizeHigh;
 	m_nFileCount = 0;
 	m_nCurFile = 0;
 	m_nVirtualFilePos = 0;
@@ -1087,13 +1251,13 @@ BOOL CUnAlz::FOpen(const char* szPathName)
 #ifdef _WIN32
 		m_files[i].fp = CreateFileA(temp, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 		if(m_files[i].fp==INVALID_HANDLE_VALUE) break;
-		dwFileSizeLow = GetFileSize(m_files[i].fp, &dwFileSizeHigh);
+		dwFileSizeLow = GetFileSize(m_files[i].fp, (DWORD*)&dwFileSizeHigh);
 #else
 		m_files[i].fp = fopen(temp, "rb");
 		if(m_files[i].fp==NULL) break;
 		dwFileSizeHigh=0;
-		fseek(m_files[i].fp,0,SEEK_END);
-		dwFileSizeLow=ftell(m_files[i].fp);
+		fseek(m_files[i].fp,0,SEEK_END);		
+		dwFileSizeLow=ftell(m_files[i].fp);		// _LARGEFILE64_SOURCE 호환성 문제 발생.. T.T
 		fseek(m_files[i].fp,0,SEEK_SET);
 #endif
 		m_nFileCount++;
@@ -1201,13 +1365,13 @@ BOOL CUnAlz::FSeek(INT64 offset)
 /// @return  
 /// @date    2004-10-02 오후 11:44:05
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOL CUnAlz::FRead(void* buffer, DWORD nBytesToRead, int* pTotRead )
+BOOL CUnAlz::FRead(void* buffer, UINT32 nBytesToRead, int* pTotRead )
 {
 	BOOL ret;
-	DWORD nNumOfBytesRead;
+	UINT32 nNumOfBytesRead;
 	INT64 dwRemain;
-	DWORD dwRead;
-	DWORD dwTotRead;
+	UINT32 dwRead;
+	UINT32 dwTotRead;
 
 	dwRemain = nBytesToRead;
 	dwTotRead = 0;
@@ -1215,12 +1379,12 @@ BOOL CUnAlz::FRead(void* buffer, DWORD nBytesToRead, int* pTotRead )
 
 	while(dwRemain)
 	{
-		dwRead = (DWORD)min(dwRemain, (m_files[m_nCurFile].nFileSize-m_nCurFilePos-m_files[m_nCurFile].nMultivolTailSize));
+		dwRead = (UINT32)min(dwRemain, (m_files[m_nCurFile].nFileSize-m_nCurFilePos-m_files[m_nCurFile].nMultivolTailSize));
 		if(dwRead==0) {
 			m_bIsEOF = TRUE;return FALSE;
 		}
 #ifdef _WIN32
-		ret = ReadFile(m_files[m_nCurFile].fp, ((BYTE*)buffer)+dwTotRead, dwRead, &nNumOfBytesRead, NULL);
+		ret = ReadFile(m_files[m_nCurFile].fp, ((BYTE*)buffer)+dwTotRead, dwRead, (DWORD*)&nNumOfBytesRead, NULL);
 		if(ret==FALSE && GetLastError()==ERROR_HANDLE_EOF) 
 		{
 			m_bIsEOF = TRUE;return FALSE;
@@ -1274,3 +1438,14 @@ BOOL CUnAlz::FRead(void* buffer, DWORD nBytesToRead, int* pTotRead )
 	return ret;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          error code 를 스트링으로 바꿔 준다.
+/// @param   nERR  
+/// @return  
+/// @date    2004-10-24 오후 3:28:39
+////////////////////////////////////////////////////////////////////////////////////////////////////
+const char* CUnAlz::LastErrToStr(ERR nERR)
+{
+	if(nERR>= sizeof(errorstrtable)/sizeof(errorstrtable[0])) {ASSERT(0); return NULL; }
+	return errorstrtable[nERR];
+}
