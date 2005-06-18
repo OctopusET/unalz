@@ -87,6 +87,7 @@ static const char* errorstrtable[]=
 	"no error",										// ERR_NOERR
 	"can't open file",								// ERR_CANT_OPEN_FILE
 	"corrupted file",								// ERR_CORRUPTED_FILE
+	"not alz file",									// ERR_NOT_ALZ_FILE
 	"can't read signature",							// ERR_CANT_READ_SIG
 	"can't read file",								// ERR_CANT_READ_FILE
 	"error at read header",							// ERR_AT_READ_HEADER
@@ -100,6 +101,9 @@ static const char* errorstrtable[]=
 	"memory allocation failed",						// ERR_MEM_ALLOC_FAILED,
 	"file read error",								// ERR_FILE_READ_ERROR,
 	"inflate failed",								// ERR_INFLATE_FAILED,
+	"bzip2 decompress failed",						// ERR_BZIP2_FAILED,
+	"invalid file CRC",								// ERR_INVALID_FILE_CRC
+	"unknown compression method",					// ERR_UNKNOWN_COMPRESSION_METHOD
 									
 	"iconv-can't open iconv",						// ERR_ICONV_CANT_OPEN,
 	"iconv-invalid multisequence of characters",	// ERR_ICONV_INVALID_MULTISEQUENCE_OF_CHARACTERS,
@@ -107,9 +111,9 @@ static const char* errorstrtable[]=
 	"iconv-not enough space of buffer to convert",	// ERR_ICONV_NOT_ENOUGH_SPACE_OF_BUFFER_TO_CONVERT,
 	"iconv-etc",									// ERR_ICONV_ETC,
 	
-	"password not set",								//ERR_PASSWD_NOT_SET,
-	"invalid password",								//ERR_INVALID_PASSWD,
-	"User Aborted",					
+	"password was not set",							// ERR_PASSWD_NOT_SET,
+	"invalid password",								// ERR_INVALID_PASSWD,
+	"user aborted",					
 };
 
 
@@ -210,6 +214,8 @@ BOOL CUnAlz::Open(const char* szPathName)
 		return FALSE;
 	}
 
+	BOOL	bValidAlzHeader = FALSE;
+
 	// file 분석시작..
 	for(;;)
 	{
@@ -225,11 +231,18 @@ BOOL CUnAlz::Open(const char* szPathName)
 		}
 		if(sig==SIG_ERROR)
 		{
-			m_nErr = ERR_CORRUPTED_FILE;
+			if(bValidAlzHeader)
+				m_nErr = ERR_CORRUPTED_FILE;	// 손상된 파일
+			else
+				m_nErr = ERR_NOT_ALZ_FILE;	// alz 파일이 아니다.
 			return FALSE;						// 깨진 파일..
 		}
 
-		if(sig==SIG_ALZ_FILE_HEADER) ret = ReadAlzFileHeader();
+		if(sig==SIG_ALZ_FILE_HEADER) 
+		{
+			ret = ReadAlzFileHeader();
+			bValidAlzHeader = TRUE;					// alz 파일은 맞다.
+		}
 		else if(sig==SIG_LOCAL_FILE_HEADER) ret = ReadLocalFileheader();
 		else if(sig==SIG_CENTRAL_DIRECTORY_STRUCTURE) ret = ReadCentralDirectoryStructure();
 		else if(sig==SIG_ENDOF_CENTRAL_DIRECTORY_RECORD) ret = ReadEndofCentralDirectoryRecord();
@@ -340,9 +353,9 @@ BOOL CUnAlz::ReadLocalFileheader()
 	if(byteLen)
 	{
 		FRead(&(zipHeader.compressionMethod),	sizeof(zipHeader.compressionMethod));
-		FRead(&(zipHeader.unknown3),			sizeof(zipHeader.unknown3));
-		FRead(&(zipHeader.unknown4),			sizeof(zipHeader.unknown4));
-		FRead(&(zipHeader.passwordCRC),			sizeof(zipHeader.passwordCRC));
+		FRead(&(zipHeader.unknown),				sizeof(zipHeader.unknown));
+		FRead(&(zipHeader.fileCRC),				sizeof(zipHeader.fileCRC));
+//		FRead(&(zipHeader.passwordCRC),			sizeof(zipHeader.passwordCRC));
 
 		FRead(&(zipHeader.compressedSize), byteLen);
 		FRead(&(zipHeader.uncompressedSize),  byteLen);			// 압축 사이즈가 없다.
@@ -354,7 +367,7 @@ BOOL CUnAlz::ReadLocalFileheader()
     zipHeader.uncompressedSize      =   unalz_le64toh(zipHeader.uncompressedSize); 
 
 	// FILE NAME
-	zipHeader.fileName = (char*)malloc(zipHeader.head.fileNameLength+1);
+	zipHeader.fileName = (char*)malloc(zipHeader.head.fileNameLength+sizeof(char));
 	if(zipHeader.fileName==NULL)
 	{
 		m_nErr = ERR_INVALID_FILENAME_LENGTH;
@@ -415,7 +428,14 @@ BOOL CUnAlz::ReadLocalFileheader()
 		else 
 		{
 			outbuf[ICONV_BUF_SIZE-oleft] = 0;
-			strcpy(zipHeader.fileName, outbuf);
+			if(zipHeader.fileName) free(zipHeader.fileName);
+			zipHeader.fileName = strdup(outbuf);
+			if (zipHeader.fileName == NULL)
+			{
+				m_nErr = ERR_ICONV_ETC;
+				iconv_close(cd);
+				return FALSE;
+			}
 			// printf("\n  Converted File Name : %s", outbuf);
 		}
 		
@@ -576,6 +596,11 @@ BOOL CUnAlz::SetCurrentFile(const char* szFileName)
 	return FALSE;
 }
 
+void CUnAlz::SetCurrentFile(FileList::iterator newPos)
+{
+	m_posCur = newPos;
+}
+
 #ifndef MAX_WBITS
 #  define MAX_WBITS   15 /* 32K LZ77 window */
 #endif
@@ -692,9 +717,12 @@ BOOL CUnAlz::ExtractTo(SExtractDest* dest)
 	{
 		ret = ExtractDeflate2(dest, *m_posCur);			// deflate
 	}
-	else
+	else	// COMP_UNKNOWN
 	{
-		ASSERT(0);										// 새로운 방법 ???
+		// alzip 5.6 부터 추가된 포맷(5.5 에서는 풀지 못한다. 영문 5.51 은 푼다 ) 
+		// 하지만 어떤 버전에서 이 포맷을 만들어 내는지 정확히 알 수 없다.
+		m_nErr = ERR_UNKNOWN_COMPRESSION_METHOD;
+		ASSERT(0);										
 		ret = FALSE;
 	}
 	return ret;
@@ -887,6 +915,7 @@ int	CUnAlz::WriteToDest(SExtractDest* dest, BYTE* buf, int nSize)
 	}
 	else if(dest->nType==ET_MEM)
 	{
+		if(dest->buf==NULL) return nSize;			// 대상이 NULL 이다... 압축푸는 시늉만 한다..
 		if(dest->bufpos+nSize >dest->bufsize)		// 에러.. 버퍼가 넘쳤다.
 		{
 			ASSERT(0);
@@ -1006,14 +1035,15 @@ END :
 #define BUF_LEN		(4096*2)
 BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 {
-	BOOL	ret = FALSE;
-	BYTE	buf[BUF_LEN];
-	INT64	read;
-	INT64	sizeToRead;
-	INT64   bufLen = BUF_LEN;
-	INT64	nWritten = 0;
-	BOOL	bHalt = FALSE;
-	BOOL	bIsEncrypted = 	IsEncryptedFile();		// 암호걸린 파일인가?
+	BOOL		ret = FALSE;
+	BYTE		buf[BUF_LEN];
+	INT64		read;
+	INT64		sizeToRead;
+	INT64		bufLen = BUF_LEN;
+	INT64		nWritten = 0;
+	BOOL		bHalt = FALSE;
+	BOOL		bIsEncrypted = 	IsEncryptedFile();		// 암호걸린 파일인가?
+	UINT32		dwCRC32= 0;
 
 
 
@@ -1022,6 +1052,7 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 
 	sizeToRead = file.compressedSize;			// 읽을 크기.
 
+	m_nErr = ERR_NOERR;
 	while(sizeToRead)
 	{
 		read = min(sizeToRead, bufLen);
@@ -1032,6 +1063,8 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 
 		if(bIsEncrypted)
 			DecryptingData((int)read, buf); // xf86
+
+		dwCRC32 = crc32(dwCRC32, buf, (UINT)(read));
 
 		WriteToDest(dest, buf, (int)read);
 		//fwrite(buf, read, 1, fp);
@@ -1051,7 +1084,20 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 	}
 
 	m_bHalt = bHalt;
-	ret = TRUE;
+
+	if(m_nErr==ERR_NOERR)			// 성공적으로 압축을 풀었다.. CRC 검사하기..
+	{
+		if(file.fileCRC==dwCRC32)
+		{
+			ret = TRUE;
+		}
+		else
+		{
+			m_nErr = ERR_INVALID_FILE_CRC;
+		}
+	}
+
+
 	return ret;
 }
 
@@ -1065,14 +1111,16 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 #define BZIP2_EXTRACT_BUF_SIZE	0x2000
 BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file)
 {
-	BZFILE	*bzfp = NULL;
-	int		smallMode = 0;
-	int		verbosity = 1;
-	int		bzerr;
-	INT64	len;
-	char	buff[BZIP2_EXTRACT_BUF_SIZE];
-	INT64	nWritten = 0;
-	BOOL	bHalt = FALSE;
+	BZFILE		*bzfp = NULL;
+	int			smallMode = 0;
+	int			verbosity = 1;
+	int			bzerr;
+	INT64		len;
+	BYTE		buff[BZIP2_EXTRACT_BUF_SIZE];
+	INT64		nWritten = 0;
+	BOOL		bHalt = FALSE;
+	UINT32		dwCRC32= 0;
+	BOOL		ret = FALSE;
 
 	FSeek(file.dwFileDataPos);
 
@@ -1080,10 +1128,14 @@ BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file)
 
 	if(bzfp==NULL){ASSERT(0); return FALSE;}
 
+	m_nErr = ERR_NOERR;
 	while((len=BZ2_bzread(bzfp,buff,BZIP2_EXTRACT_BUF_SIZE))>0)
 	{
 		WriteToDest(dest, (BYTE*)buff, (int)len);
 		//fwrite(buff,1,len,fp_w);
+
+		dwCRC32 = crc32(dwCRC32,buff, (UINT)(len));
+
 
 		nWritten+=len;
 
@@ -1098,9 +1150,27 @@ BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file)
 		}
 	}
 
+	if(len<0)			// 에러 상황..
+	{
+		m_nErr = ERR_INFLATE_FAILED;
+	}
+
 	BZ2_bzReadClose( &bzerr, bzfp);
 
 	m_bHalt = bHalt;
+
+	if(m_nErr==ERR_NOERR)			// 성공적으로 압축을 풀었다.. CRC 검사하기..
+	{
+		if(file.fileCRC==dwCRC32)
+		{
+			ret = TRUE;
+		}
+		else
+		{
+			m_nErr = ERR_INVALID_FILE_CRC;
+		}
+	}
+
 
 	/*		
 	// FILE* 를 사용할경우 사용하던 코드. - 멀티 볼륨 지원 안함..
@@ -1140,7 +1210,7 @@ BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file)
 	m_bHalt = bHalt;
 	*/
 
-	return TRUE;
+	return ret;
 }
 
 
@@ -1188,6 +1258,7 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 	stream.next_out = pOutBuf;
 	stream.avail_out = OUT_BUF_SIZE;
 
+	m_nErr = ERR_NOERR;
 	while(stream.avail_out>0)
 	{
 		if(stream.avail_in==0 && nRestReadCompressed>0)
@@ -1204,9 +1275,11 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 				m_nErr = ERR_CANT_READ_FILE;
 				goto END;
 			}
-
+			
 			if(bIsEncrypted)
 				DecryptingData(uReadThis, pInBuf); // xf86
+
+//			dwCRC32 = crc32(dwCRC32,pInBuf, (UINT)(uReadThis));
 			
 			nRestReadCompressed -= uReadThis;
 			stream.next_in = pInBuf;
@@ -1245,6 +1318,7 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
 			m_pFuncCallBack(NULL, nWritten, file.uncompressedSize, m_pCallbackParam, &bHalt);
 			if(bHalt) 
 			{
+				m_nErr = ERR_USER_ABORTED;
 				break;
 			}
 		}
@@ -1258,10 +1332,21 @@ BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
             goto END;
 		}
 	}
-
 	m_bHalt = bHalt;
 
-	ret = TRUE;
+
+	if(m_nErr==ERR_NOERR)			// 성공적으로 압축을 풀었다.. CRC 검사하기..
+	{
+		if(file.fileCRC==dwCRC32)
+		{
+			ret = TRUE;
+		}
+		else
+		{
+			m_nErr = ERR_INVALID_FILE_CRC;
+		}
+	}
+
 
 END :
 	inflateEnd(&stream);
@@ -1497,17 +1582,16 @@ const char* CUnAlz::LastErrToStr(ERR nERR)
 // by xf86
 BOOL	CUnAlz::chkValidPassword()
 {
-	if(IsEncryptedFile())
-	{
-		if (getPasswordLen() == 0){
-			m_nErr = ERR_PASSWD_NOT_SET;
-			return FALSE;
-		}
-		InitCryptKeys(m_szPasswd);
-		if(CryptCheck(m_posCur->encChk) == FALSE){
-			m_nErr = ERR_INVALID_PASSWD;
-			return FALSE;
-		}
+	if(IsEncryptedFile()==FALSE) {return TRUE;}
+
+	if (getPasswordLen() == 0){
+		m_nErr = ERR_PASSWD_NOT_SET;
+		return FALSE;
+	}
+	InitCryptKeys(m_szPasswd);
+	if(CryptCheck(m_posCur->encChk) == FALSE){
+		m_nErr = ERR_INVALID_PASSWD;
+		return FALSE;
 	}
 	return TRUE;
 }
@@ -1638,21 +1722,25 @@ void CUnAlz::UpdateKeys(BYTE c)
 /// @return  
 /// @date    2004-11-27 오후 11:04:24
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOL CUnAlz::CryptCheck(BYTE* buf)
+BOOL CUnAlz::CryptCheck(const BYTE* buf)
 {
 	int i;
 	BYTE c;
+	BYTE temp[ENCR_HEADER_LEN];
+
+	memcpy(temp, buf, ENCR_HEADER_LEN);		// 임시 복사.
+
 	for(i=0;i<ENCR_HEADER_LEN;i++)
 	{
-		c = buf[i] ^ DecryptByte();
+		c = temp[i] ^ DecryptByte();
 		UpdateKeys(c);
-		buf[i] = c;
+		temp[i] = c;
 	}
 
 	if (IsDataDescr()) // Data descriptor present
 		return (m_posCur->head.fileTimeDate >> 8) == c;
 	else
-		return (m_posCur->passwordCRC) == c;
+		return ( ((m_posCur->fileCRC)>>24) ) == c;		// 파일 crc 의 최상위 byte 
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1701,3 +1789,5 @@ UINT32 CUnAlz::CRC32(UINT32 l, BYTE c)
 	const ULONG *CRC_TABLE = get_crc_table();
 	return CRC_TABLE[(l ^ c) & 0xff] ^ (l >> 8);
 }
+
+

@@ -1,6 +1,6 @@
 /*
 
-  COPYRIGHT(C) 2004  hardkoder@gmail.com / http://www.kipple.pe.kr
+  COPYRIGHT(C) 2004-2005  hardkoder , http://www.kipple.pe.kr
 
   저작권 정보 : ( BSD License )
     - 이 소스는 자유로이 사용/수정/재배포 가능합니다.
@@ -33,26 +33,39 @@
 	            - 2GB 이상의 파일 처리 지원 (WINDOWS ONLY)
 	2004/10/22	- 다중 플랫폼(BSD/LINUX)지원을 위한 수정
 				  ( BSD/LINUX 의 경우 2GB 이하의 파일만 지원 )
+				- unalz 0.20
 	2004/10/23	- by xxfree86 : DARWIN 컴파일 지원, 경로명에 "\\" 포함시 문제점 수정
 	2004/10/24	- by aqua0125 : 코드페이지 변환처리, 64bit 파일 처리
 				- 빅엔디안, 코드페이지 변환 관련 소스 정리
 	2004/10/25	- by yongari : __LP64__ , 빅엔디안(le64toh/le132oh/le16toh) 관련 이슈 수정
 	2004/10/26	- BSD/LINUX : byte-order, libiconv 이슈 정리 
+				- unalz 0.22
 	2004/10/30	- 정리 & 정리.. 
+				- unalz 0.23
 	2004/11/14	- by xxfre86 : 암호 걸린 파일 처리 추가
+				- unalz 0.30
 	2004/11/27	- cygwin에서 컴파일 되도록 수정
 	            - 암호처리 부분에 일부 사용된 GPL 의 CZipArchive 코드를 "ZIP File Format Specification version 4.5" 문서를 참고해서 다시 코딩 & 정리
 				- 암호걸린 파일과 안걸린 파일 섞였을때 처리
 				- 파일의 뒷부분이 잘려서 손상된 파일도 멀쩡한 부분까지는 압축을 풀도록 수정
+				- unalz 0.31
+	2005/01/08	- 암호 잘못 입력시 한번 체크후 두번째는 정상 암호를 입력해서 풀지 못하게 되던 버그 수정
+	2005/02/05	- 압축 해제후 deflate 의 파일 CRC 확인 기능 추가
+	2005/03/07	- bzip2, raw 파일에 대한 파일 CRC 확인 기능 추가
+	2005/03/13	- ALZ 파일이 아닐경우 에러 코드(ERR_NOT_ALZ_FILE) 추가
+	2005/06/16	- GetFileList() 함수 버그 수정(리턴타입 변경)
+	2005/06/18	- by goweol : utf-8 사용시 파일이름에서 버퍼 오버플로우 발생하던 버그 수정
+				- unalz 0.4
 
   
-  할일 : ( * 표는 한거 )
-	- bzip2 로 압축된 파일의 압축 해제 *
-	- UI 개선 ( PROGRESS, 에러 메시지 출력, 압축 해제 결과 ) *
-	- 분할 압축 파일 지원 *
-	- 암호 걸린 파일 지원 *
-	- 손상된 파일에서의 좀더 많은 테스트 -> 
-	- 파일 CRC 체크 -> alz 는 CRC 필드가 없다. OTL
+  기능 :
+	- alz 파일의 압축 해제 ( deflate/변형 bzip2/raw )
+	- 분할 압축 파일 지원 (alz, a00, a01.. )
+	- 다양한 플래폼 지원 (Win32/POSIX(BSD/LINUX/DARWIN))
+	- 암호걸린 파일의 압축 해제
+	- 뒷부분이 잘린 파일도 멀쩡한 부분까지 압축 해제 가능
+	- CRC 체크기능
+
 
   컴파일 옵션 ( -DXXXX )
 	- _WIN32 : WIN32 
@@ -149,8 +162,8 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[] = "CUnAlz0.31";
-static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004 hardkoder@gmail.com";
+static const char UNALZ_VERSION[]   = "CUnAlz0.4";
+static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2005 by hardkoder ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
 // 맨 파일 앞..
@@ -180,12 +193,20 @@ enum COMPRESSION_METHOD					///<  압축 방법..
 	COMP_NOCOMP = 0,
 	COMP_BZIP2 = 1,
 	COMP_DEFLATE = 2,
+	COMP_UNKNOWN = 3,					// unknown!
+};
+
+enum FILE_ATTRIBUTE
+{
+	FILEATTR_FILE   = 0x1,
+	FILEATTR_FOLDER = 0x10,
+	FILEATTR_FILE2  = 0x20,				/// FILEATTR_FILE 과 FILEATTR_FILE2 의 차이는 모르겠다..
 };
 
 struct _SLocalFileHeaderHead			///<  고정 헤더.
 {
 	SHORT	fileNameLength;
-	BYTE    fileAttribute;			     // from http://www.zap.pe.kr
+	BYTE    fileAttribute;			    // from http://www.zap.pe.kr, FILE_ATTRIBUE 참고
 	UINT32  fileTimeDate;    
 	
 	BYTE	fileDescriptor;				///<  파일 크기 필드의 크기 : 0x10, 0x20, 0x40, 0x80 각각 1byte, 2byte, 4byte, 8byte.
@@ -206,12 +227,14 @@ struct _SLocalFileHeaderHead			///<  고정 헤더.
 	*/
 };
 
+/*
 struct _SDataDescriptor
 {
 	UINT32	crc32;
 	UINT32	compressed;
 	UINT32	uncompressed;
 };
+*/
 
 struct SLocalFileHeader
 {
@@ -221,16 +244,16 @@ struct SLocalFileHeader
 	_SLocalFileHeaderHead	head;
 
 	BYTE					compressionMethod;			///< 압축 방법 : 2 - deflate, 1 - 변형 bzip2, 0 - 압축 안함.
-	BYTE					unknown3[1];				///< ???
-	BYTE					unknown4[3];				///< 아마도 crc?
-	BYTE					passwordCRC;				///< 암호 체크를 위한 1byte crc
+	BYTE					unknown;
+	UINT32					fileCRC;					///< 파일의 CRC, 최상위 바이트는 암호 체크용으로도 사용된다.
+	//BYTE					passwordCRC;				///< 암호 체크를 위한 1byte crc
 
 	INT64					compressedSize;
 	INT64					uncompressedSize;
 
 	CHAR*					fileName;
 	BYTE*					extraField;
-	_SDataDescriptor		dataDescriptor;
+//	_SDataDescriptor		dataDescriptor;
 	INT64					dwFileDataPos;				///<  file data 가 저장된 위치..
 	
 	BYTE					encChk[ENCR_HEADER_LEN];	// xf86
@@ -321,11 +344,12 @@ public:
 	void	Close();
 	BOOL	SetCurrentFile(const char* szFileName);
 	BOOL	ExtractCurrentFile(const char* szDestPathName, const char* szDestFileName=NULL);
-	BOOL	ExtractCurrentFileToBuf(BYTE* pDestBuf, int nBufSize);
+	BOOL	ExtractCurrentFileToBuf(BYTE* pDestBuf, int nBufSize);		// pDestBuf=NULL 일 경우 테스트만 수행한다.
 	BOOL	ExtractAll(const char* szDestPathName);
 	void	SetCallback(_UnAlzCallback* pFunc, void* param=NULL);
 
 	void	setPassword(char *passwd) { if(strlen(passwd) == 0) return; strcpy(m_szPasswd, passwd); };  // xf86
+	BOOL	chkValidPassword();			// xf86
 	BOOL	IsEncrypted() { return m_bIsEncrypted; };
 
 #ifdef _UNALZ_ICONV
@@ -346,10 +370,10 @@ public :			///<  WIN32 전용 ( UNICODE 처리용 )
 #endif // _WIN32
 
 public :
-	typedef vector<SLocalFileHeader>		FileList;			///<  파일 목록.
-	const FileList&	GetFileList() { return m_fileList; };		///<  file 목록 리턴
-	FileList::iterator GetCurFileHeader() { return m_posCur; };	///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
-//	const SLocalFileHeader* GetCurFileHeader() { return m_posCur; };	///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
+	typedef vector<SLocalFileHeader>		FileList;					///<  파일 목록.
+	FileList*			GetFileList() { return &m_fileList; };			///<  file 목록 리턴
+	void				SetCurrentFile(FileList::iterator newPos);		///< low level 접근..
+	FileList::iterator	GetCurFileHeader() { return m_posCur; };		///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
 
 public :
 	enum ERR							///< 에러 코드 - 정리 필요..
@@ -357,6 +381,7 @@ public :
 		ERR_NOERR,
 		ERR_CANT_OPEN_FILE,				///< 파일 열기 실패
 		ERR_CORRUPTED_FILE,				///< 깨진 파일?
+		ERR_NOT_ALZ_FILE,				///< ALZ 파일이 아니다.
 		ERR_CANT_READ_SIG,				///< signature 읽기 실패
 		ERR_CANT_READ_FILE,
 
@@ -371,6 +396,9 @@ public :
 		ERR_MEM_ALLOC_FAILED,
 		ERR_FILE_READ_ERROR,
 		ERR_INFLATE_FAILED,
+		ERR_BZIP2_FAILED,
+		ERR_INVALID_FILE_CRC,	
+		ERR_UNKNOWN_COMPRESSION_METHOD,
 
 		ERR_ICONV_CANT_OPEN,
 		ERR_ICONV_INVALID_MULTISEQUENCE_OF_CHARACTERS,
@@ -474,11 +502,10 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
 
 	BOOL		m_bIsEncrypted;		// xf86
 	BOOL		m_bIsDataDescr;
-	char		m_szPasswd[256];
-	UINT32		m_keys[3];
+	char		m_szPasswd[512];
 
 private :
-	/*
+	/*			from CZipArchive
 	void		CryptDecodeBuffer(UINT32 uCount, CHAR *buf);
 	void		CryptInitKeys();
 	void		CryptUpdateKeys(CHAR c);
@@ -489,12 +516,11 @@ private :
 	*/
 
 private :		// encryption 처리
-	BOOL		chkValidPassword();			// xf86
 	BOOL		IsEncryptedFile(BYTE fileDescriptor);
 	BOOL		IsEncryptedFile();
 	void		InitCryptKeys(const CHAR* szPassword);
 	void		UpdateKeys(BYTE c);
-	BOOL		CryptCheck(BYTE* buf);
+	BOOL		CryptCheck(const BYTE* buf);
 	BYTE		DecryptByte();
 	void		DecryptingData(int nSize, BYTE* data);
 	UINT32		CRC32(UINT32 l, BYTE c);

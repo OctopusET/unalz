@@ -71,8 +71,9 @@ int main(int argc, char* argv[])
 //	printf("unalz v0.20 (2004/10/22) \n");
 //	printf("unalz v0.22 (2004/10/27) \n");
 //	printf("unalz v0.23 (2004/10/30) \n");
-	printf("unalz v0.31 (2004/11/27) \n");
-	printf("Copyright(C) 2004 koder (http://www.kipple.pe.kr) \n");
+//	printf("unalz v0.31 (2004/11/27) \n");
+	printf("unalz v0.4 (2005/06/18) \n");
+	printf("Copyright(C) 2004-2005 by hardkoder (http://www.kipple.pe.kr) \n");
 
 	if(argc<2)
 	{
