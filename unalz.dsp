@@ -179,10 +179,6 @@ SOURCE=.\zlib\zconf.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\zlib\zconf.in.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\zlib\zlib.h
 # End Source File
 # Begin Source File
