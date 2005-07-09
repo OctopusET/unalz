@@ -1,0 +1,108 @@
+#include <stdio.h>
+#include <time.h>
+#include "UnAlzUtils.h"
+
+
+#ifdef _WIN32
+#	define I64FORM(x) "%"#x"I64d" 
+#	define U64FORM(x) "%"#x"I64u"
+#else
+#	define I64FORM(x) "%"#x"lld"
+#	define U64FORM(x) "%"#x"llu"
+#endif
+
+time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
+{
+	struct tm t;         
+	t.tm_isdst = -1;     
+	t.tm_sec  = (((int)dostime) <<  1) & 0x3e;
+	t.tm_min  = (((int)dostime) >>  5) & 0x3f;
+	t.tm_hour = (((int)dostime) >> 11) & 0x1f;
+	t.tm_mday = (int)(dostime >> 16) & 0x1f;
+	t.tm_mon  = ((int)(dostime >> 21) & 0x0f) - 1;
+	t.tm_year = ((int)(dostime >> 25) & 0x7f) + 80;
+	return mktime(&t);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          fileAttribute 를 스트링으로 바꿔준다.
+/// @param   buf  - 5byte 이상 
+/// @param   fileAttribute  - ALZ_FILE_ATTRIBUTE 참조
+/// @return  
+/// @date    2005-06-23 오후 10:12:35
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void FileAttr2Str(char* buf, BYTE fileAttribute)
+{
+	buf[0] = 0;
+
+	if(fileAttribute&ALZ_FILEATTR_FILE)
+		strcat(buf, "A");
+	else
+		strcat(buf, "_");
+
+	if(fileAttribute&ALZ_FILEATTR_DIRECTORY)
+		strcat(buf, "D");
+	else
+		strcat(buf, "_");
+
+	if(fileAttribute&ALZ_FILEATTR_READONLY)
+		strcat(buf, "R");
+	else
+		strcat(buf, "_");
+
+	if(fileAttribute&ALZ_FILEATTR_HIDDEN)
+		strcat(buf, "H");
+	else
+		strcat(buf, "_");
+}
+
+
+// alz 파일을 리스팅 한다 ( -l 옵션 )
+int ListAlz(CUnAlz* pUnAlz, const char* src)
+{
+	CUnAlz::FileList::iterator	i;
+	CUnAlz::FileList*			list;
+
+	list = pUnAlz->GetFileList();
+
+	printf("\nListing archive: %s\n"
+		   "\n   Date      Time   Attr          Size   Compressed  Name\n",
+		   src);
+	printf("------------------- ----- ------------ ------------  ------------\n");
+
+	char szDate[64];
+	char szTime[64];
+	char szAttr[6];
+	UINT64 totalUnCompressedSize = 0;
+	UINT64 totalCompressedSize = 0;
+	unsigned fileNum = 0;
+	time_t	time;
+	struct tm*		filetm;
+	for(i=list->begin(); i<list->end(); i++)
+	{
+		// time
+		time = dosTime2TimeT(i->head.fileTimeDate);
+		filetm = localtime(&time);
+		strftime(szTime, 64, "%H:%M:%S", filetm);
+		strftime(szDate, 64, "%Y:%m:%d", filetm);
+		// attributes
+		FileAttr2Str(szAttr, i->head.fileAttribute);
+
+		printf("%s %s %s " I64FORM(12) " " I64FORM(12) "   %s%s\n",
+			   szDate, szTime, szAttr, i->uncompressedSize,
+			   i->compressedSize, i->fileName, 
+			   i->head.fileDescriptor & ALZ_FILE_DESCRIPTOR_ENCRYPTED ? "*" : "" );
+
+		++fileNum;
+		totalUnCompressedSize += i->uncompressedSize;
+		totalCompressedSize += i->compressedSize;
+	}
+
+	printf("------------------- ----- ------------ ------------  ------------\n");
+	printf("                         " U64FORM(12) " " U64FORM(12) "   %u file(s)\n",
+		   totalUnCompressedSize, totalCompressedSize, fileNum);
+
+	return 0;
+}
+
+

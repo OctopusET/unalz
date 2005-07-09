@@ -1,11 +1,20 @@
+#ifdef _WIN32
+#	pragma warning( disable : 4786 )		// stl warning 없애기
+#endif
+
 #include <stdio.h>
 #include <iostream>
+#include <time.h>
+#include <string>
+#include <vector>
 #include "UnAlz.h"
+#include "UnAlzUtils.h"
 
 
 void Usage()
 {
 	printf("\n");
+	/*
 #ifdef _UNALZ_ICONV
 		printf("USAGE : unalz [ -utf8 | -cp949 | -euc-kr ] sourcefile.alz [dest path] \n");
 #	ifdef _UNALZ_UTF8
@@ -20,7 +29,31 @@ void Usage()
 #else		// no iconv
 	printf("USAGE : unalz sourcefile.alz [dest path] \n");
 #endif // _UNALZ_ICONV
+	*/
+
+	printf("Usage : unalz [<switches>...] archive.alz [<file names to extract>...]\n");
+
+	printf("\n");
+	printf("<switches>\n");
+#ifdef _UNALZ_ICONV
+#	ifdef _UNALZ_UTF8
+		printf("  -utf8        : convert filename's codepage to UTF-8 (default)\n");
+		printf("  -cp949       : convert filename's codepage to CP949\n");
+		printf("  -euc-kr      : convert filename's codepage to EUC-KR\n");
+#	else
+		printf("  -utf8        : convert filename's codepage to UTF-8\n");
+		printf("  -cp949       : convert filename's codepage to CP949 (default)\n");
+		printf("  -euc-kr      : convert filename's codepage to EUC-KR\n");
+#	endif // _UNALZ_UTF8
+#endif // _UNALZ_ICONV
+		printf("  -l           : list contents of archive\n");
+		printf("  -d directory : set output directory\n");
+
 }
+
+
+
+
 
 void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* param, BOOL* bHalt)
 {
@@ -72,7 +105,8 @@ int main(int argc, char* argv[])
 //	printf("unalz v0.22 (2004/10/27) \n");
 //	printf("unalz v0.23 (2004/10/30) \n");
 //	printf("unalz v0.31 (2004/11/27) \n");
-	printf("unalz v0.4 (2005/06/18) \n");
+//	printf("unalz v0.4 (2005/06/18) \n");
+	printf("unalz v0.5 (2005/07/09) \n");
 	printf("Copyright(C) 2004-2005 by hardkoder (http://www.kipple.pe.kr) \n");
 
 	if(argc<2)
@@ -85,27 +119,37 @@ int main(int argc, char* argv[])
 	char* source=NULL;
 	char* destpath=".";
 	char* destcodepage=NULL;
-	int   count=1;
+	int   count;
+	BOOL  listMode = FALSE;
+	vector<string>	filelist;
 
-	// utf8 옵션 처리
+	/*	old method
+	for (count=1 ; count < argc && argv[count][0] == '-'; ++count)
+	{
 #ifdef _UNALZ_ICONV
-	if(strcmp(argv[count], "-utf8")==0)
-	{
-		destcodepage = "UTF-8";				// utf-8 support
-		count++;
+		// utf8 옵션 처리
+		if(strcmp(argv[count], "-utf8")==0)
+		{
+			destcodepage = "UTF-8";				// utf-8 support
+		}
+		else if(strcmp(argv[count], "-cp949")==0)
+		{
+			destcodepage = "CP949";				// cp949 
+		}
+		else if(strcmp(argv[count], "-euc-kr")==0)
+		{
+			destcodepage = "EUC-KR";			// EUC-KR
+		}
+		else
+#endif
+		if(strcmp(argv[count], "-l")==0 || strcmp(argv[count], "-list")==0)
+		{
+			listMode = TRUE;
+		}
 	}
-	else if(strcmp(argv[count], "-cp949")==0)
-	{
-		destcodepage = "CP949";				// cp959 
-		count++;
-	}
-	else if(strcmp(argv[count], "-euc-kr")==0)
-	{
-		destcodepage = "EUC-KR";			// EUC-KR
-		count++;
-	}
-	if(count>=argc)	{Usage();return 0;}		// 옵션만 쓰면 어쩌라고..
 
+#ifdef _UNALZ_ICONV
+	if(count>=argc)	{Usage();return 0;}		// 옵션만 쓰면 어쩌라고..
 	if(destcodepage) unalz.SetDestCodepage(destcodepage);
 #endif
 
@@ -119,6 +163,54 @@ int main(int argc, char* argv[])
 		destpath = argv[count];
 		count++;
 	}
+	*/
+
+	for (count=1 ; count < argc; count++)
+	{
+#ifdef _UNALZ_ICONV
+		// utf8 옵션 처리
+		if(strcmp(argv[count], "-utf8")==0)
+		{
+			destcodepage = "UTF-8";				// utf-8 support
+		}
+		else if(strcmp(argv[count], "-cp949")==0)
+		{
+			destcodepage = "CP949";				// cp949 
+		}
+		else if(strcmp(argv[count], "-euc-kr")==0)
+		{
+			destcodepage = "EUC-KR";			// EUC-KR
+		}
+		else
+#endif
+		if(strcmp(argv[count], "-l")==0 || strcmp(argv[count], "-list")==0)
+		{
+			listMode = TRUE;
+		}
+		else if(strcmp(argv[count], "-d")==0)		// dest dir
+		{
+			count++;
+			if(count>=argc)	{Usage();return 0;}	// dest dir 이 정상 지정되지 않았다..
+			destpath = argv[count];
+		}
+		else									// 옵션이 아닌 경우
+		{
+			if(source==NULL)					// 소스 파일 경로
+			{
+				source=argv[count];							
+			}
+			else								// 압축풀 파일 
+			{
+				filelist.push_back(argv[count]);
+			}
+		}
+	}
+
+	if(source==NULL) {Usage();return 0;}		// 옵션만 쓰면 어쩌라고..
+
+#ifdef _UNALZ_ICONV
+	if(destcodepage) unalz.SetDestCodepage(destcodepage);
+#endif
 
 
 	// 파일 열기
@@ -126,7 +218,7 @@ int main(int argc, char* argv[])
 	{
 		if(unalz.GetLastErr()==CUnAlz::ERR_CORRUPTED_FILE)
 		{
-			printf("It's corrupted file.\n", source);		// 그냥 계속 풀기..
+			printf("It's corrupted file.\n");		// 그냥 계속 풀기..
 		}
 		else
 		{
@@ -136,27 +228,50 @@ int main(int argc, char* argv[])
 		}
 	}
 
-
-	if(unalz.IsEncrypted()){
-		char pwd[256];
-		cout << "Enter Password : ";
-		cin >> pwd;
-		unalz.setPassword(pwd);
-	}
-
-	printf("\nExtract %s to %s\n", source, destpath);
-
-	// callback 함수 세팅
-	unalz.SetCallback(UnAlzCallback, (void*)NULL);
-	if(unalz.ExtractAll(destpath)==FALSE)
+	if (listMode)
 	{
-		printf("\n");
-		printf("extract %s to %s failed.\n", source, destpath);
-		printf("err code(%d) (%s)\n", unalz.GetLastErr(), unalz.GetLastErrStr());
+		return ListAlz(&unalz, source);
 	}
-	printf("\ndone..\n");
+	else
+	{
+		if(unalz.IsEncrypted())
+		{
+			char pwd[256];
+			printf("Enter Password : ");
+			fgets(pwd,256,stdin);
+			unalz.setPassword(pwd);
+		}
 
+		printf("\nExtract %s to %s\n", source, destpath);
+
+		// callback 함수 세팅
+		unalz.SetCallback(UnAlzCallback, (void*)NULL);
+
+		if (filelist.empty()==false)		// 파일 지정하기.
+		{
+			vector<string>::iterator i;
+			for(i=filelist.begin();i<filelist.end();i++)
+			{
+				if(unalz.SetCurrentFile(i->c_str())==FALSE)
+				{
+					printf("filename not matched : %s\n", i->c_str());
+				}
+				else
+					unalz.ExtractCurrentFile(destpath);
+			}
+		}
+		else								// 모든 파일 다풀기.
+		{
+			if(unalz.ExtractAll(destpath)==FALSE)
+			{
+				printf("\n");
+				printf("extract %s to %s failed.\n", source, destpath);
+				printf("err code(%d) (%s)\n", unalz.GetLastErr(),
+					   unalz.GetLastErrStr());
+			}
+		}
+		printf("\ndone..\n");
+	}
 
 	return 0;
 }
-
