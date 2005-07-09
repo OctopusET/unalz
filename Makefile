@@ -1,6 +1,6 @@
 CPP = g++
 CC  = gcc
-OBJ = main.o UnAlz.o UnAlzBz2decompress.o UnAlzBzip2.o UnAlzbzlib.o zlib/adler32.o zlib/crc32.o zlib/infback.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/zutil.o bzip2/blocksort.o bzip2/compress.o bzip2/crctable.o bzip2/huffman.o bzip2/randtable.o
+OBJ = main.o UnAlz.o UnAlzUtils.o UnAlzBz2decompress.o UnAlzBzip2.o UnAlzbzlib.o zlib/adler32.o zlib/crc32.o zlib/infback.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/zutil.o bzip2/blocksort.o bzip2/compress.o bzip2/crctable.o bzip2/huffman.o bzip2/randtable.o
 BIN = unalz
 LDFLAGS = 
 CFLAGS = -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 
@@ -13,24 +13,32 @@ all:
 	@echo "TARGET_SYSTEM is one of"
 	@echo ""
 	@echo " posix             : POSIX system (FreeBSD/linux/OSX/sparc)"
-	@echo " posix-utf8        : POSIX with utf8 filesystem(OSX)"
-	@echo " posix-noiconv     : POSIX without libiconv (Windows(MINGW32,CYGWIN)/CP949 only file system)"
-
+	@echo " posix-utf8        : POSIX with utf8 filesystem(e.g. OSX)"
+	@echo " linux-utf8        : LINUX with utf8 filesystem(without -liconv option)"
+	@echo " posix-noiconv     : POSIX without libiconv (Windows(MINGW32,CYGWIN) or EUC-KR file system)"
 	@echo ""
-	@echo " and 'clean' for clean"
+	@echo " 'install' for copy unalz to /usr/local/bin and  "
+	@echo " 'clean' for clean"
 	@echo ""
 
 posix: unalz
-	$(CPP) -c UnAlz.cpp  -c main.cpp -D_UNALZ_ICONV $(CFLAGS) 
+	$(CPP) -c UnAlz.cpp -c UnAlzUtils.cpp -c main.cpp -D_UNALZ_ICONV $(CFLAGS) 
 	$(CPP) $(OBJ) $(LDFLAGS) -liconv -o $(BIN) 
 
 posix-utf8: unalz
-	$(CPP) -c UnAlz.cpp -c main.cpp -D_UNALZ_ICONV -D_UNALZ_UTF8 $(CFLAGS)
+	$(CPP) -c UnAlz.cpp -c UnAlzUtils.cpp -c main.cpp -D_UNALZ_ICONV -D_UNALZ_UTF8 $(CFLAGS)
 	$(CPP) $(OBJ) $(LDFLAGS) -liconv -o $(BIN)
 
 posix-noiconv: unalz
-	$(CPP) -c UnAlz.cpp -c main.cpp $(CFLAGS)
+	$(CPP) -c UnAlz.cpp -c UnAlzUtils.cpp -c main.cpp $(CFLAGS)
 	$(CPP) $(OBJ) $(LDFLAGS) -o $(BIN)
+
+linux-utf8: unalz
+	$(CPP) -c UnAlz.cpp -c UnAlzUtils.cpp -c main.cpp -D_UNALZ_ICONV -D_UNALZ_UTF8 $(CFLAGS)
+	$(CPP) $(OBJ) $(LDFLAGS) -o $(BIN)
+
+install:
+	cp unalz /usr/local/bin/
 
 clean:
 	rm -f $(OBJ) $(BIN)

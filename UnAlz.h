@@ -42,7 +42,7 @@
 				- unalz 0.22
 	2004/10/30	- 정리 & 정리.. 
 				- unalz 0.23
-	2004/11/14	- by xxfre86 : 암호 걸린 파일 처리 추가
+	2004/11/14	- by  xxfree86 : 암호 걸린 파일 처리 추가
 				- unalz 0.30
 	2004/11/27	- cygwin에서 컴파일 되도록 수정
 	            - 암호처리 부분에 일부 사용된 GPL 의 CZipArchive 코드를 "ZIP File Format Specification version 4.5" 문서를 참고해서 다시 코딩 & 정리
@@ -56,7 +56,13 @@
 	2005/06/16	- GetFileList() 함수 버그 수정(리턴타입 변경)
 	2005/06/18	- by goweol : utf-8 사용시 파일이름에서 버퍼 오버플로우 발생하던 버그 수정
 				- unalz 0.4
-
+	2005/06/22	- by goweol : -l 옵션으로 파일 리스팅 기능 추가
+				- UnAlzUtils.cpp/h 파일을 프로젝트에 추가 
+	2005/06/29	- by xxfree86 : MacOSX 10.4.1  gcc 4.0 에서 iconv 관련 컴파일 에러 수정
+				- 빅엔디안에서 CRC 체크시 에러 발생하는 문제점 수정(?)
+	2005/07/02	- unalz 커맨드 라인 방식 변경, 압축풀 대상 파일 지정 기능 추가..
+				- 압축 해제된 파일시간을 원래 시간으로 세팅하는 코드 추가 - from unalz_wcx_01i.zip
+	2005/07/09	- unalz 0.5
   
   기능 :
 	- alz 파일의 압축 해제 ( deflate/변형 bzip2/raw )
@@ -79,7 +85,6 @@
 #define _UNALZ_H_
 
 #include <vector>
-#include <string>
 using namespace std;
 
 
@@ -129,7 +134,9 @@ using namespace std;
 	typedef unsigned long ULONG;   // same as DWORD? i don't know.
 #endif
 #ifndef BOOL
+#	ifndef BOOL_DEFINED		// 이미 BOOL 이 DEFINE 되어 있으면 BOOL_DEFINED 를 define 해서 컴파일 에러를 막을 수 있다.
 	typedef int BOOL;
+#	endif
 #endif
 #ifndef FALSE
 #	define FALSE               0
@@ -147,7 +154,7 @@ using namespace std;
 #ifndef ASSERT
 #	include <assert.h>
 //#	define ASSERT(x) assert(x)
-#	define ASSERT(x) {printf("assert at file:%s line:%d\n", __FILE__, __LINE__);}
+#	define ASSERT(x) {printf("unalz assert at file:%s line:%d\n", __FILE__, __LINE__);}
 #endif
 
 
@@ -162,7 +169,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.4";
+static const char UNALZ_VERSION[]   = "CUnAlz0.5";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2005 by hardkoder ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
@@ -196,18 +203,28 @@ enum COMPRESSION_METHOD					///<  압축 방법..
 	COMP_UNKNOWN = 3,					// unknown!
 };
 
-enum FILE_ATTRIBUTE
+enum ALZ_FILE_ATTRIBUTE
 {
-	FILEATTR_FILE   = 0x1,
-	FILEATTR_FOLDER = 0x10,
-	FILEATTR_FILE2  = 0x20,				/// FILEATTR_FILE 과 FILEATTR_FILE2 의 차이는 모르겠다..
+	ALZ_FILEATTR_READONLY	= 0x1,
+	ALZ_FILEATTR_HIDDEN		= 0x2,
+	ALZ_FILEATTR_DIRECTORY	= 0x10,
+	ALZ_FILEATTR_FILE		= 0x20,			
+};
+
+enum ALZ_FILE_DESCRIPTOR
+{
+	ALZ_FILE_DESCRIPTOR_ENCRYPTED			= 0x01,		// 암호 걸린 파일
+	ALZ_FILE_DESCRIPTOR_FILESIZEFIELD_1BYTE = 0x10,		// 파일 크기 필드의 크기
+	ALZ_FILE_DESCRIPTOR_FILESIZEFIELD_2BYTE = 0x20,
+	ALZ_FILE_DESCRIPTOR_FILESIZEFIELD_4BYTE = 0x40,
+	ALZ_FILE_DESCRIPTOR_FILESIZEFIELD_8BYTE = 0x80,
 };
 
 struct _SLocalFileHeaderHead			///<  고정 헤더.
 {
 	SHORT	fileNameLength;
-	BYTE    fileAttribute;			    // from http://www.zap.pe.kr, FILE_ATTRIBUE 참고
-	UINT32  fileTimeDate;    
+	BYTE    fileAttribute;			    // from http://www.zap.pe.kr, enum FILE_ATTRIBUE 참고
+	UINT32  fileTimeDate;				// dos file time
 	
 	BYTE	fileDescriptor;				///<  파일 크기 필드의 크기 : 0x10, 0x20, 0x40, 0x80 각각 1byte, 2byte, 4byte, 8byte.
 										///<  fileDescriptor & 1 == 암호걸렸는지 여부
@@ -246,7 +263,6 @@ struct SLocalFileHeader
 	BYTE					compressionMethod;			///< 압축 방법 : 2 - deflate, 1 - 변형 bzip2, 0 - 압축 안함.
 	BYTE					unknown;
 	UINT32					fileCRC;					///< 파일의 CRC, 최상위 바이트는 암호 체크용으로도 사용된다.
-	//BYTE					passwordCRC;				///< 암호 체크를 위한 1byte crc
 
 	INT64					compressedSize;
 	INT64					uncompressedSize;
@@ -262,7 +278,7 @@ struct SLocalFileHeader
 struct _SCentralDirectoryStructureHead
 {
 	UINT32	dwUnknown;						///<  항상 NULL 이던데..
-	UINT32	dwMaybeCRC;						///<  아마도 crc
+	UINT32	dwUnknown2;						///<  아마도 crc
 	UINT32	dwCLZ03;						///<  "CLZ0x03" - 0x035a4c43 끝을 표시하는듯.
 	/*
 	SHORT	versionMadeBy;
@@ -472,7 +488,7 @@ private :		// bzip2 파일 처리 함수..
 	int			BZ2_bzRead(int* bzerror, MYBZFILE* b, void* buf, int len);
 	void		BZ2_bzReadClose( int *bzerror, MYBZFILE *b );
 
-private :		// 분할 압축 파일 처리를 위한 래퍼(lapper?) 클래스
+private :		// 분할 압축 파일 처리를 위한 래퍼(lapper^^?) 클래스
 	BOOL		FOpen(const char* szPathName);
 	void		FClose();
 	INT64		FTell();

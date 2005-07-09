@@ -3,6 +3,18 @@
 #include "bzip2/bzlib.h"
 #include "UnAlz.h"
 
+// utime 함수 처리
+#if defined(_WIN32) || defined(__CYGWIN__)
+#	include <time.h>
+#	include <sys/utime.h>
+#endif
+
+#ifdef __GNUC__
+#	include <time.h>
+#	include <utime.h>
+#endif
+
+
 // mkdir
 #ifdef _WIN32				
 #	include <direct.h>		
@@ -27,7 +39,7 @@
 //// byte-order : little to host                                        ////
 ////////////////////////////////////////////////////////////////////////////
 
-#if defined(_WIN32) ||defined(__CYGWIN__)		// little to little
+#if defined(_WIN32) || defined(__CYGWIN__)		// little to little
 	inline UINT16	unalz_le16toh(UINT16 a){return a;}
 	inline UINT32	unalz_le32toh(UINT32 a){return a;}
 	inline UINT64	unalz_le64toh(UINT64 a){return a;}
@@ -68,7 +80,7 @@
 
 
 #ifndef MAX_PATH
-#	define MAX_PATH 260
+#	define MAX_PATH 260*6			// 그냥 .. 충분히..
 #endif
 
 #ifdef _WIN32
@@ -79,6 +91,18 @@
 #	define PATHSEPC '/'
 #endif
 
+static time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
+{
+	struct tm t;         
+	t.tm_isdst = -1;     
+	t.tm_sec  = (((int)dostime) <<  1) & 0x3e;
+	t.tm_min  = (((int)dostime) >>  5) & 0x3f;
+	t.tm_hour = (((int)dostime) >> 11) & 0x1f;
+	t.tm_mday = (int)(dostime >> 16) & 0x1f;
+	t.tm_mon  = ((int)(dostime >> 21) & 0x0f) - 1;
+	t.tm_year = ((int)(dostime >> 25) & 0x7f) + 80;
+	return mktime(&t);
+}
 
 
 // error string table <- CUnAlz::ERR 의 번역
@@ -355,13 +379,13 @@ BOOL CUnAlz::ReadLocalFileheader()
 		FRead(&(zipHeader.compressionMethod),	sizeof(zipHeader.compressionMethod));
 		FRead(&(zipHeader.unknown),				sizeof(zipHeader.unknown));
 		FRead(&(zipHeader.fileCRC),				sizeof(zipHeader.fileCRC));
-//		FRead(&(zipHeader.passwordCRC),			sizeof(zipHeader.passwordCRC));
 
 		FRead(&(zipHeader.compressedSize), byteLen);
 		FRead(&(zipHeader.uncompressedSize),  byteLen);			// 압축 사이즈가 없다.
 	}
 
 	// little to system 
+    zipHeader.fileCRC				=   unalz_le32toh(zipHeader.fileCRC);
     zipHeader.head.fileNameLength   =   unalz_le16toh(zipHeader.head.fileNameLength);
     zipHeader.compressedSize        =   unalz_le64toh(zipHeader.compressedSize);
     zipHeader.uncompressedSize      =   unalz_le64toh(zipHeader.uncompressedSize); 
@@ -389,7 +413,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 	size_t size;
 	char inbuf[ICONV_BUF_SIZE];
 	char outbuf[ICONV_BUF_SIZE];
-#if defined(__FreeBSD__) || defined(__CYGWIN__)
+#if defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__APPLE__)
 	const char *inptr = inbuf;
 #else
 	char *inptr = inbuf;
@@ -474,6 +498,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 	}
 	*/
 
+	/*
 #ifdef _DEBUG
 	printf("NAME:%s COMPRESSED SIZE:%d UNCOMPRESSED SIZE:%d COMP METHOD:%d\n", 
 		zipHeader.fileName, 
@@ -482,6 +507,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 		zipHeader.compressionMethod
 		);
 #endif
+	*/
 
 	// 파일을 목록에 추가한다..
 	m_fileList.push_back(zipHeader);
@@ -691,7 +717,15 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	if(m_pFuncCallBack) m_pFuncCallBack(m_posCur->fileName, 0,m_posCur->uncompressedSize,m_pCallbackParam, NULL);
 
 	ret = ExtractTo(&dest);
-	if(dest.fp!=NULL)fclose(dest.fp);
+	if(dest.fp!=NULL)
+	{
+		fclose(dest.fp);
+		// file time setting - from unalz_wcx_01i.zip
+		utimbuf tmp;
+		tmp.actime = 0;													// 마지막 엑세스 타임
+		tmp.modtime = dosTime2TimeT(m_posCur->head.fileTimeDate);		// 마지막 수정일자만 변경(만든 날자는 어떻게 바꾸지?)
+		utime(m_posCur->fileName, &tmp);
+	}
 	return ret;
 }
 
@@ -721,6 +755,7 @@ BOOL CUnAlz::ExtractTo(SExtractDest* dest)
 	{
 		// alzip 5.6 부터 추가된 포맷(5.5 에서는 풀지 못한다. 영문 5.51 은 푼다 ) 
 		// 하지만 어떤 버전에서 이 포맷을 만들어 내는지 정확히 알 수 없다.
+		// 공식으로 릴리즈된 알집은 이 포맷을 만들어내지 않는다. 비공식(베타?)으로 배포된 버전에서만 이 포맷을 만들어낸다.
 		m_nErr = ERR_UNKNOWN_COMPRESSION_METHOD;
 		ASSERT(0);										
 		ret = FALSE;
@@ -1418,6 +1453,7 @@ void CUnAlz::FClose()
 	m_nVirtualFilePos = 0;
 	m_nCurFilePos = 0;
 	m_bIsEOF = FALSE;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

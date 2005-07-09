@@ -384,6 +384,12 @@
 						PreprocessorDefinitions=""/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath=".\UnAlzUtils.cpp">
+			</File>
+			<File
+				RelativePath=".\UnAlzUtils.h">
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

@@ -213,6 +213,14 @@ SOURCE=.\UnAlzBzip2.cpp
 
 SOURCE=.\UnAlzbzlib.c
 # End Source File
+# Begin Source File
+
+SOURCE=.\UnAlzUtils.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\UnAlzUtils.h
+# End Source File
 # End Group
 # End Target
 # End Project
