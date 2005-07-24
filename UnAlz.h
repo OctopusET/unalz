@@ -63,9 +63,14 @@
 	2005/07/02	- unalz 커맨드 라인 방식 변경, 압축풀 대상 파일 지정 기능 추가..
 				- 압축 해제된 파일시간을 원래 시간으로 세팅하는 코드 추가 - from unalz_wcx_01i.zip
 	2005/07/09	- unalz 0.5
+	2005/07/25	- -d 로 대상 경로를 "/" 로 시작되는 절대경로로 지정하면 프로그램이 죽던 버그 수정(Pavel Roskin)
+				- pipemode 추가 - 메시지없이 파이프로 출력한다(Pavel Roskin)
+				- 리스트 모드에서 파일 날자/시간을 시스템 로케일 설정에 따라서 표시(Pavel Roskin)
+				- 커맨드라인에서 -pwd 옵션으로 암호 지정기능 추가
+				- unalz 0.51
   
   기능 :
-	- alz 파일의 압축 해제 ( deflate/변형 bzip2/raw )
+	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
 	- 분할 압축 파일 지원 (alz, a00, a01.. )
 	- 다양한 플래폼 지원 (Win32/POSIX(BSD/LINUX/DARWIN))
 	- 암호걸린 파일의 압축 해제
@@ -169,7 +174,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.5";
+static const char UNALZ_VERSION[]   = "CUnAlz0.51";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2005 by hardkoder ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
@@ -363,6 +368,7 @@ public:
 	BOOL	ExtractCurrentFileToBuf(BYTE* pDestBuf, int nBufSize);		// pDestBuf=NULL 일 경우 테스트만 수행한다.
 	BOOL	ExtractAll(const char* szDestPathName);
 	void	SetCallback(_UnAlzCallback* pFunc, void* param=NULL);
+	void	SetPipeMode(BOOL bPipeMode) {m_bPipeMode=bPipeMode;}
 
 	void	setPassword(char *passwd) { if(strlen(passwd) == 0) return; strcpy(m_szPasswd, passwd); };  // xf86
 	BOOL	chkValidPassword();			// xf86
@@ -395,7 +401,9 @@ public :
 	enum ERR							///< 에러 코드 - 정리 필요..
 	{
 		ERR_NOERR,
-		ERR_CANT_OPEN_FILE,				///< 파일 열기 실패
+		ERR_CANT_OPEN_FILE,				///< 소스 파일 열기 실패
+		ERR_CANT_OPEN_DEST_FILE,		///< 대상 파일 열기 실패
+//		ERR_CANT_CREATE_DEST_PATH,		///< 대상 경로 만들기 실패
 		ERR_CORRUPTED_FILE,				///< 깨진 파일?
 		ERR_NOT_ALZ_FILE,				///< ALZ 파일이 아니다.
 		ERR_CANT_READ_SIG,				///< signature 읽기 실패
@@ -519,6 +527,7 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper^^?) 클래스
 	BOOL		m_bIsEncrypted;		// xf86
 	BOOL		m_bIsDataDescr;
 	char		m_szPasswd[512];
+	BOOL		m_bPipeMode;						///< pipemode - 메시지 출력없이 stdout 으로만 출력
 
 private :
 	/*			from CZipArchive

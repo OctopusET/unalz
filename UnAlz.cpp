@@ -109,7 +109,9 @@ static time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 static const char* errorstrtable[]=
 {
 	"no error",										// ERR_NOERR
-	"can't open file",								// ERR_CANT_OPEN_FILE
+	"can't open archive file",						// ERR_CANT_OPEN_FILE
+	"can't open dest file or path",					// ERR_CANT_OPEN_DEST_FILE
+//	"can't create dest path",						// ERR_CANT_CREATE_DEST_PATH
 	"corrupted file",								// ERR_CORRUPTED_FILE
 	"not alz file",									// ERR_NOT_ALZ_FILE
 	"can't read signature",							// ERR_CANT_READ_SIG
@@ -161,6 +163,7 @@ CUnAlz::CUnAlz()
 	m_bIsEOF = FALSE;
 	m_bIsEncrypted = FALSE;
 	m_bIsDataDescr = FALSE;
+	m_bPipeMode = FALSE;
 
 #ifdef _UNALZ_ICONV
 
@@ -663,7 +666,7 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	BOOL	ret=FALSE;
 
 	SExtractDest	dest;
-	char	szDestPathFileName[MAX_PATH];
+	char			szDestPathFileName[MAX_PATH];
 	
 	if(chkValidPassword() == FALSE) 
 	{
@@ -692,27 +695,46 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 
 	// 압축풀 대상 ( 파일 )
 	dest.nType = ET_FILE;
-	dest.fp = fopen(szDestPathFileName, "wb");
 
+	if(m_bPipeMode)
+		dest.fp = stdout;				// pipe mode 일 경우 stdout 출력
+	else
+		dest.fp = fopen(szDestPathFileName, "wb");
+
+	// 타입이 폴더일 경우..
+	if(m_bPipeMode==FALSE && (m_posCur->head.fileAttribute) & ALZ_FILEATTR_DIRECTORY )
+	{
+//printf("digpath:%s\n", szDestPathFileName);
+		// 경로파기
+		DigPath(szDestPathFileName);
+		return TRUE;
+//		m_nErr = ERR_CANT_CREATE_DEST_PATH;
+//		return FALSE;
+	}
+
+	// 파일 열기 실패시 - 경로를 파본다
 	if(dest.fp==NULL) 
 	{
-		DigPath(szDestPathFileName);		// 경로명에 / 가 있을 경우..
+		DigPath(szDestPathFileName);
 		dest.fp = fopen(szDestPathFileName, "wb");
 	}
 
-#ifdef _WIN32
+	// 그래도 파일열기 실패시.
 	if(dest.fp==NULL) 
 	{
-		ASSERT(0); 
+		// 대상 파일 열기 실패
+		m_nErr = ERR_CANT_OPEN_DEST_FILE;
+//printf("dest pathfilename:%s\n",szDestPathFileName);
 		if(m_pFuncCallBack)
 		{
-			CHAR buf[1024];
-			sprintf(buf, "파일 열기 실패 : %s", szDestPathFileName);
-			m_pFuncCallBack(buf, 0,0,m_pCallbackParam, NULL);
+//			CHAR buf[1024];
+//			sprintf(buf, "파일 열기 실패 : %s", szDestPathFileName);
+//			m_pFuncCallBack(buf, 0,0,m_pCallbackParam, NULL);
 		}
 		return FALSE;
 	}
-#endif
+//#endif
+
 	// CALLBACK 세팅
 	if(m_pFuncCallBack) m_pFuncCallBack(m_posCur->fileName, 0,m_posCur->uncompressedSize,m_pCallbackParam, NULL);
 
@@ -864,9 +886,9 @@ BOOL CUnAlz::ExtractAll(const char* szDestPathName)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOL CUnAlz::DigPath(const char* szPathName)
 {
-	char* dup = strdup(szPathName);
-	char seps[]   = "/\\";
-	char *token;
+	char*	dup = strdup(szPathName);
+	char	seps[]   = "/\\";
+	char*	token;
 	char	path[MAX_PATH] = {0};
 	char*	last;
 
@@ -882,11 +904,16 @@ BOOL CUnAlz::DigPath(const char* szPathName)
 		last --;
 	}
 
+	
 	token = strtok( dup, seps );
 	while( token != NULL )
 	{
-		if(strlen(path)==0) 
-			strcpy(path, token);
+		if(strlen(path)==0)
+		{
+			if(szPathName[0]=='/')			// is absolute path ?
+				strcpy(path,"/");
+			strcat(path, token);
+		}
 		else
 		{
 			strcat(path, PATHSEP);
@@ -899,6 +926,7 @@ BOOL CUnAlz::DigPath(const char* szPathName)
 #else
 			mkdir(path,  S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 #endif
+//printf("path:%s\n", path);
 		token = strtok( NULL, seps );
 	}
 
