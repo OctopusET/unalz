@@ -10,9 +10,28 @@
 #include "UnAlz.h"
 #include "UnAlzUtils.h"
 
+#include <sys/timeb.h>
+
+
+BOOL	g_bPipeMode=FALSE;
+
+void Copyright()
+{
+//	printf("unalz v0.20 (2004/10/22) \n");
+//	printf("unalz v0.22 (2004/10/27) \n");
+//	printf("unalz v0.23 (2004/10/30) \n");
+//	printf("unalz v0.31 (2004/11/27) \n");
+//	printf("unalz v0.4 (2005/06/18) \n");
+//	printf("unalz v0.5 (2005/07/09) \n");
+	printf("unalz v0.51 (2005/07/24) \n");
+	printf("Copyright(C) 2004-2005 by hardkoder (http://www.kipple.pe.kr) \n");
+}
+
 
 void Usage()
 {
+	Copyright();
+
 	printf("\n");
 	/*
 #ifdef _UNALZ_ICONV
@@ -48,6 +67,8 @@ void Usage()
 #endif // _UNALZ_ICONV
 		printf("  -l           : list contents of archive\n");
 		printf("  -d directory : set output directory\n");
+		printf("  -p           : extract files to pipe, no messages\n");
+		printf("  -pwd <pwd>   : set password\n");
 
 }
 
@@ -57,6 +78,8 @@ void Usage()
 
 void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* param, BOOL* bHalt)
 {
+	if(g_bPipeMode) return;		// slient
+
 	// progress
 	static char szFileName[1024]={0};
 	INT64	percent;
@@ -101,14 +124,6 @@ void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* pa
 
 int main(int argc, char* argv[])
 {
-//	printf("unalz v0.20 (2004/10/22) \n");
-//	printf("unalz v0.22 (2004/10/27) \n");
-//	printf("unalz v0.23 (2004/10/30) \n");
-//	printf("unalz v0.31 (2004/11/27) \n");
-//	printf("unalz v0.4 (2005/06/18) \n");
-	printf("unalz v0.5 (2005/07/09) \n");
-	printf("Copyright(C) 2004-2005 by hardkoder (http://www.kipple.pe.kr) \n");
-
 	if(argc<2)
 	{
 		Usage();
@@ -119,6 +134,7 @@ int main(int argc, char* argv[])
 	char* source=NULL;
 	char* destpath=".";
 	char* destcodepage=NULL;
+	char* password=NULL;
 	int   count;
 	BOOL  listMode = FALSE;
 	vector<string>	filelist;
@@ -187,11 +203,21 @@ int main(int argc, char* argv[])
 		{
 			listMode = TRUE;
 		}
+		else if(strcmp(argv[count], "-p")==0)
+		{
+			g_bPipeMode = TRUE;
+		}
 		else if(strcmp(argv[count], "-d")==0)		// dest dir
 		{
 			count++;
 			if(count>=argc)	{Usage();return 0;}	// dest dir 이 정상 지정되지 않았다..
 			destpath = argv[count];
+		}
+		else if(strcmp(argv[count], "-pwd")==0)		// pwd
+		{
+			count++;
+			if(count>=argc)	{Usage();return 0;}	// dest dir 이 정상 지정되지 않았다..
+			password = argv[count];
 		}
 		else									// 옵션이 아닌 경우
 		{
@@ -212,6 +238,12 @@ int main(int argc, char* argv[])
 	if(destcodepage) unalz.SetDestCodepage(destcodepage);
 #endif
 
+
+	if(g_bPipeMode==FALSE)
+		Copyright();						// copyright 표시
+
+	// pipe mode setting
+	unalz.SetPipeMode(g_bPipeMode);
 
 	// 파일 열기
 	if(unalz.Open(source)==FALSE)
@@ -236,13 +268,21 @@ int main(int argc, char* argv[])
 	{
 		if(unalz.IsEncrypted())
 		{
-			char pwd[256];
-			printf("Enter Password : ");
-			fgets(pwd,256,stdin);
-			unalz.setPassword(pwd);
+			if(password)						// command line 으로 암호가 지정되었을 경우.
+			{
+				unalz.setPassword(password);
+			}
+			else
+			{
+				char pwd[256];
+				printf("Enter Password : ");
+				fgets(pwd,256,stdin);
+				unalz.setPassword(pwd);
+			}
 		}
 
-		printf("\nExtract %s to %s\n", source, destpath);
+		if(g_bPipeMode==FALSE)
+			printf("\nExtract %s to %s\n", source, destpath);
 
 		// callback 함수 세팅
 		unalz.SetCallback(UnAlzCallback, (void*)NULL);
@@ -254,7 +294,8 @@ int main(int argc, char* argv[])
 			{
 				if(unalz.SetCurrentFile(i->c_str())==FALSE)
 				{
-					printf("filename not matched : %s\n", i->c_str());
+					if(g_bPipeMode==FALSE)
+						printf("filename not matched : %s\n", i->c_str());
 				}
 				else
 					unalz.ExtractCurrentFile(destpath);
@@ -264,13 +305,17 @@ int main(int argc, char* argv[])
 		{
 			if(unalz.ExtractAll(destpath)==FALSE)
 			{
-				printf("\n");
-				printf("extract %s to %s failed.\n", source, destpath);
-				printf("err code(%d) (%s)\n", unalz.GetLastErr(),
-					   unalz.GetLastErrStr());
+				if(g_bPipeMode==FALSE)
+				{
+					printf("\n");
+					printf("extract %s to %s failed.\n", source, destpath);
+					printf("err code(%d) (%s)\n", unalz.GetLastErr(),
+						   unalz.GetLastErrStr());
+				}
 			}
 		}
-		printf("\ndone..\n");
+		if(g_bPipeMode==FALSE)
+			printf("\ndone..\n");
 	}
 
 	return 0;

@@ -66,11 +66,11 @@ int ListAlz(CUnAlz* pUnAlz, const char* src)
 	list = pUnAlz->GetFileList();
 
 	printf("\nListing archive: %s\n"
-		   "\n   Date      Time   Attr          Size   Compressed  Name\n",
+		   "\n   Date & Time      Attr          Size   Compressed  Name\n",
 		   src);
 	printf("------------------- ----- ------------ ------------  ------------\n");
 
-	char szDate[64];
+//	char szDate[64];
 	char szTime[64];
 	char szAttr[6];
 	UINT64 totalUnCompressedSize = 0;
@@ -83,13 +83,14 @@ int ListAlz(CUnAlz* pUnAlz, const char* src)
 		// time
 		time = dosTime2TimeT(i->head.fileTimeDate);
 		filetm = localtime(&time);
-		strftime(szTime, 64, "%H:%M:%S", filetm);
-		strftime(szDate, 64, "%Y:%m:%d", filetm);
+//		strftime(szTime, 64, "%H:%M:%S", filetm);
+//		strftime(szDate, 64, "%Y-%m-%d", filetm);
+		strftime(szTime, 64, "%x %X", filetm);				// use system locale
 		// attributes
 		FileAttr2Str(szAttr, i->head.fileAttribute);
 
-		printf("%s %s %s " I64FORM(12) " " I64FORM(12) "   %s%s\n",
-			   szDate, szTime, szAttr, i->uncompressedSize,
+		printf("%19s %s " I64FORM(12) " " I64FORM(12) "   %s%s\n",
+			   szTime, szAttr, i->uncompressedSize,
 			   i->compressedSize, i->fileName, 
 			   i->head.fileDescriptor & ALZ_FILE_DESCRIPTOR_ENCRYPTED ? "*" : "" );
 
