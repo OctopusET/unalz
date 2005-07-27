@@ -23,7 +23,8 @@ void Copyright()
 //	printf("unalz v0.31 (2004/11/27) \n");
 //	printf("unalz v0.4 (2005/06/18) \n");
 //	printf("unalz v0.5 (2005/07/09) \n");
-	printf("unalz v0.51 (2005/07/24) \n");
+//	printf("unalz v0.51 (2005/07/24) \n");
+	printf("unalz v0.52 (2005/07/27) \n");
 	printf("Copyright(C) 2004-2005 by hardkoder (http://www.kipple.pe.kr) \n");
 }
 
@@ -124,6 +125,8 @@ void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* pa
 
 int main(int argc, char* argv[])
 {
+	setlocale(LC_ALL, "");
+
 	if(argc<2)
 	{
 		Usage();

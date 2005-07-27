@@ -63,11 +63,13 @@
 	2005/07/02	- unalz 커맨드 라인 방식 변경, 압축풀 대상 파일 지정 기능 추가..
 				- 압축 해제된 파일시간을 원래 시간으로 세팅하는 코드 추가 - from unalz_wcx_01i.zip
 	2005/07/09	- unalz 0.5
-	2005/07/25	- -d 로 대상 경로를 "/" 로 시작되는 절대경로로 지정하면 프로그램이 죽던 버그 수정(Pavel Roskin)
+	2005/07/24	- -d 로 대상 경로를 "/" 로 시작되는 절대경로로 지정하면 프로그램이 죽던 버그 수정(Pavel Roskin)
 				- pipemode 추가 - 메시지없이 파이프로 출력한다(Pavel Roskin)
 				- 리스트 모드에서 파일 날자/시간을 시스템 로케일 설정에 따라서 표시(Pavel Roskin)
 				- 커맨드라인에서 -pwd 옵션으로 암호 지정기능 추가
 				- unalz 0.51
+	2005/07/27	- main() 에 setlocale() 추가
+				- unalz 0.52
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -174,7 +176,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.51";
+static const char UNALZ_VERSION[]   = "CUnAlz0.52";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2005 by hardkoder ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
