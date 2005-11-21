@@ -7,6 +7,7 @@
 #include <time.h>
 #include <string>
 #include <vector>
+#include <locale.h>
 #include "UnAlz.h"
 #include "UnAlzUtils.h"
 
@@ -24,7 +25,9 @@ void Copyright()
 //	printf("unalz v0.4 (2005/06/18) \n");
 //	printf("unalz v0.5 (2005/07/09) \n");
 //	printf("unalz v0.51 (2005/07/24) \n");
-	printf("unalz v0.52 (2005/07/27) \n");
+//	printf("unalz v0.52 (2005/07/27) \n");
+//	printf("unalz v0.53 (2005/10/15) \n");
+	printf("unalz v0.54 (2005/11/21) \n");
 	printf("Copyright(C) 2004-2005 by hardkoder (http://www.kipple.pe.kr) \n");
 }
 

@@ -30,6 +30,10 @@
 #	include <errno.h>		// iconv.h 때문에 필요 
 #endif
 
+#if defined(__NetBSD__)
+#	include <sys/param.h>		// __NetBSD_Version__
+#	include <errno.h>		// iconv.h 때문에 필요 
+#endif
 
 #define swapint64(Data) (INT64) ( (((Data)&0x00000000000000FFLL) << 56) | (((Data)&0x000000000000FF00LL) << 40) | (((Data)&0x0000000000FF0000LL) << 24) | (((Data)&0x00000000FF000000LL) << 8)  | (((Data)&0x000000FF00000000LL) >> 8)  | (((Data)&0x0000FF0000000000LL) >> 24) | (((Data)&0x00FF000000000000LL) >> 40) | (((Data)&0xFF00000000000000LL) >> 56) )
 #define swapint32(a)    ((((a)&0xff)<<24)+(((a>>8)&0xff)<<16)+(((a>>16)&0xff)<<8)+(((a>>24)&0xff)))
@@ -45,7 +49,7 @@
 	inline UINT64	unalz_le64toh(UINT64 a){return a;}
 #endif
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 #	include <sys/endian.h>	
 	inline UINT16	unalz_le16toh(UINT16 a){return le16toh(a);}
 	inline UINT32	unalz_le32toh(UINT32 a){return le32toh(a);}
@@ -401,6 +405,8 @@ BOOL CUnAlz::ReadLocalFileheader()
 		return FALSE;
 	}
 	FRead(zipHeader.fileName, zipHeader.head.fileNameLength);
+	if(zipHeader.head.fileNameLength > MAX_PATH - 5)
+		zipHeader.head.fileNameLength = MAX_PATH - 5;
 	zipHeader.fileName[zipHeader.head.fileNameLength] = (CHAR)NULL;
 
 
@@ -416,7 +422,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 	size_t size;
 	char inbuf[ICONV_BUF_SIZE];
 	char outbuf[ICONV_BUF_SIZE];
-#if defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__APPLE__)
+#if defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__APPLE__) || defined(__NetBSD__)
 	const char *inptr = inbuf;
 #else
 	char *inptr = inbuf;
