@@ -42,7 +42,7 @@
 				- unalz 0.22
 	2004/10/30	- 정리 & 정리.. 
 				- unalz 0.23
-	2004/11/14	- by  xxfree86 : 암호 걸린 파일 처리 추가
+	2004/11/14	- by xxfree86 : 암호 걸린 파일 처리 추가
 				- unalz 0.30
 	2004/11/27	- cygwin에서 컴파일 되도록 수정
 	            - 암호처리 부분에 일부 사용된 GPL 의 CZipArchive 코드를 "ZIP File Format Specification version 4.5" 문서를 참고해서 다시 코딩 & 정리
@@ -70,6 +70,11 @@
 				- unalz 0.51
 	2005/07/27	- main() 에 setlocale() 추가
 				- unalz 0.52
+	2005/10/15	- NetBSD 에서 컴파일 되도록 수정 ( by minskim@bawi )
+				- unalz 0.53
+	2005/11/21	- 파일명 처리쪽에 있는 Buffer overflow 문제 수정 ( by Ulf Harnhammar <metaur@telia.com> )
+				- unalz 0.54
+
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -176,7 +181,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.52";
+static const char UNALZ_VERSION[]   = "CUnAlz0.53";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2005 by hardkoder ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
