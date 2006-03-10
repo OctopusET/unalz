@@ -1,6 +1,6 @@
 /*
 
-  COPYRIGHT(C) 2004-2005  hardkoder , http://www.kipple.pe.kr
+  COPYRIGHT(C) 2004-2006  hardkoder@gmail , http://www.kipple.pe.kr
 
   저작권 정보 : ( BSD License )
     - 이 소스는 자유로이 사용/수정/재배포 가능합니다.
@@ -71,10 +71,10 @@
 	2005/07/27	- main() 에 setlocale() 추가
 				- unalz 0.52
 	2005/10/15	- NetBSD 에서 컴파일 되도록 수정 ( by minskim@bawi )
+	2005/11/21	- buffer overflow 버그 수정 ( by Ulf Harnhammar )
 				- unalz 0.53
-	2005/11/21	- 파일명 처리쪽에 있는 Buffer overflow 문제 수정 ( by Ulf Harnhammar <metaur@telia.com> )
-				- unalz 0.54
-
+	2006/03/10	- .. 폴더 관련 보안 문제 수정 (by vuln@secunia )
+				- unalz 0.55
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -181,8 +181,8 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.53";
-static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2005 by hardkoder ( http://www.kipple.pe.kr ) ";
+static const char UNALZ_VERSION[]   = "CUnAlz0.55";
+static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2006 by hardkoder@gmail ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
 // 맨 파일 앞..
@@ -408,6 +408,7 @@ public :
 	enum ERR							///< 에러 코드 - 정리 필요..
 	{
 		ERR_NOERR,
+		ERR_GENERAL,					///< GENERAL ERROR
 		ERR_CANT_OPEN_FILE,				///< 소스 파일 열기 실패
 		ERR_CANT_OPEN_DEST_FILE,		///< 대상 파일 열기 실패
 //		ERR_CANT_CREATE_DEST_PATH,		///< 대상 경로 만들기 실패
