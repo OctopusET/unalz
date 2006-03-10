@@ -113,6 +113,7 @@ static time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 static const char* errorstrtable[]=
 {
 	"no error",										// ERR_NOERR
+	"general error",								// ERR_GENERAL
 	"can't open archive file",						// ERR_CANT_OPEN_FILE
 	"can't open dest file or path",					// ERR_CANT_OPEN_DEST_FILE
 //	"can't create dest path",						// ERR_CANT_CREATE_DEST_PATH
@@ -678,6 +679,15 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	{
 		return FALSE;
 	}
+
+	if( szDestPathName==NULL||
+		strlen(szDestPathName) + (szDestFileName?strlen(szDestFileName):strlen(m_posCur->fileName))+1 > MAX_PATH
+	   )	// check buffer overflow
+	{
+		ASSERT(0);
+		m_nErr = ERR_GENERAL;
+		return FALSE;
+	}
 	
 	// 경로명
 	strcpy(szDestPathFileName, szDestPathName);
@@ -687,6 +697,17 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	// 파일명
 	if(szDestFileName) strcat(szDestPathFileName, szDestFileName);
 	else strcat(szDestPathFileName, m_posCur->fileName);
+
+	// ../../ 형식의 보안 버그 확인
+	if( strstr(szDestPathFileName, "../")||
+		strstr(szDestPathFileName, "..\\"))
+	{
+		ASSERT(0);
+		m_nErr = ERR_GENERAL;
+		return FALSE;
+	}
+
+
 
 #ifndef _WIN32 
 	{
