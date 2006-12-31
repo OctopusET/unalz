@@ -2,6 +2,9 @@
 #include <time.h>
 #include "UnAlzUtils.h"
 
+#ifdef _WIN32				// safe string 처리
+#	include "strsafe.h"
+#endif
 
 #ifdef _WIN32
 #	define I64FORM(x) "%"#x"I64d" 
@@ -10,6 +13,8 @@
 #	define I64FORM(x) "%"#x"lld"
 #	define U64FORM(x) "%"#x"llu"
 #endif
+
+#define LEN_ATTR	6
 
 time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 {
@@ -24,6 +29,16 @@ time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 	return mktime(&t);
 }
 
+static void safe_strcat(char* dst, const char* src, size_t dst_size)
+{
+#ifdef _WIN32
+	StringCchCatExA(dst, dst_size, src, NULL, NULL, STRSAFE_FILL_BEHIND_NULL);
+	//lstrcatA(dst, src);			// not safe!!
+#else
+	strlcat(dst, src, dst_size);
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          fileAttribute 를 스트링으로 바꿔준다.
 /// @param   buf  - 5byte 이상 
@@ -31,29 +46,29 @@ time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 /// @return  
 /// @date    2005-06-23 오후 10:12:35
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-void FileAttr2Str(char* buf, BYTE fileAttribute)
+void FileAttr2Str(char szAttr[LEN_ATTR], BYTE fileAttribute)
 {
-	buf[0] = 0;
+	szAttr[0] = 0;
 
 	if(fileAttribute&ALZ_FILEATTR_FILE)
-		strcat(buf, "A");
+		safe_strcat(szAttr, "A", LEN_ATTR);
 	else
-		strcat(buf, "_");
+		safe_strcat(szAttr, "_", LEN_ATTR);
 
 	if(fileAttribute&ALZ_FILEATTR_DIRECTORY)
-		strcat(buf, "D");
+		safe_strcat(szAttr, "D", LEN_ATTR);
 	else
-		strcat(buf, "_");
+		safe_strcat(szAttr, "_", LEN_ATTR);
 
 	if(fileAttribute&ALZ_FILEATTR_READONLY)
-		strcat(buf, "R");
+		safe_strcat(szAttr, "R", LEN_ATTR);
 	else
-		strcat(buf, "_");
+		safe_strcat(szAttr, "_", LEN_ATTR);
 
 	if(fileAttribute&ALZ_FILEATTR_HIDDEN)
-		strcat(buf, "H");
+		safe_strcat(szAttr, "H", LEN_ATTR);
 	else
-		strcat(buf, "_");
+		safe_strcat(szAttr, "_", LEN_ATTR);
 }
 
 
@@ -72,7 +87,7 @@ int ListAlz(CUnAlz* pUnAlz, const char* src)
 
 //	char szDate[64];
 	char szTime[64];
-	char szAttr[6];
+	char szAttr[LEN_ATTR];
 	UINT64 totalUnCompressedSize = 0;
 	UINT64 totalCompressedSize = 0;
 	unsigned fileNum = 0;

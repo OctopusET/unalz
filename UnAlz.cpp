@@ -1,4 +1,3 @@
-//#include "stdafx.h"
 #include "zlib/zlib.h"
 #include "bzip2/bzlib.h"
 #include "UnAlz.h"
@@ -8,12 +7,10 @@
 #	include <time.h>
 #	include <sys/utime.h>
 #endif
-
 #ifdef __GNUC__
 #	include <time.h>
 #	include <utime.h>
 #endif
-
 
 // mkdir
 #ifdef _WIN32				
@@ -31,56 +28,43 @@
 #endif
 
 #if defined(__NetBSD__)
-#	include <sys/param.h>		// __NetBSD_Version__
+#	include <sys/param.h>	// __NetBSD_Version__
 #	include <errno.h>		// iconv.h 때문에 필요 
 #endif
 
-#define swapint64(Data) (INT64) ( (((Data)&0x00000000000000FFLL) << 56) | (((Data)&0x000000000000FF00LL) << 40) | (((Data)&0x0000000000FF0000LL) << 24) | (((Data)&0x00000000FF000000LL) << 8)  | (((Data)&0x000000FF00000000LL) >> 8)  | (((Data)&0x0000FF0000000000LL) >> 24) | (((Data)&0x00FF000000000000LL) >> 40) | (((Data)&0xFF00000000000000LL) >> 56) )
+#ifdef _WIN32				// string conversion
+#	include <atlbase.h>
+#	include <atlconv.h>
+#endif
+
+#ifdef _WIN32				// safe string 처리
+#	include "strsafe.h"
+#endif
+
+
+// ENDIAN 처리
+#ifdef _WIN32	// (L)
+#	define swapint64(a)	(UINT64) ( (((a)&0x00000000000000FFL) << 56) | (((a)&0x000000000000FF00L) << 40) | (((a)&0x0000000000FF0000L) << 24) | (((a)&0x00000000FF000000L) << 8)  | (((a)&0x000000FF00000000L) >> 8)  | (((a)&0x0000FF0000000000L) >> 24) | (((a)&0x00FF000000000000L) >> 40) | (((a)&0xFF00000000000000L) >> 56) )
+#else			// (LL)
+#	define swapint64(a)	(UINT64) ( (((a)&0x00000000000000FFLL) << 56) | (((a)&0x000000000000FF00LL) << 40) | (((a)&0x0000000000FF0000LL) << 24) | (((a)&0x00000000FF000000LL) << 8)  | (((a)&0x000000FF00000000LL) >> 8)  | (((a)&0x0000FF0000000000LL) >> 24) | (((a)&0x00FF000000000000LL) >> 40) | (((a)&0xFF00000000000000LL) >> 56) )
+#endif
 #define swapint32(a)    ((((a)&0xff)<<24)+(((a>>8)&0xff)<<16)+(((a>>16)&0xff)<<8)+(((a>>24)&0xff)))
 #define swapint16(a)    (((a)&0xff)<<8)+(((a>>8)&0xff))
 
-////////////////////////////////////////////////////////////////////////////
-//// byte-order : little to host                                        ////
-////////////////////////////////////////////////////////////////////////////
+typedef UINT16	(*_unalz_le16toh)(UINT16 a);
+typedef UINT32	(*_unalz_le32toh)(UINT32 a);
+typedef UINT64	(*_unalz_le64toh)(UINT64 a);
 
-#if defined(_WIN32) || defined(__CYGWIN__)		// little to little
-	inline UINT16	unalz_le16toh(UINT16 a){return a;}
-	inline UINT32	unalz_le32toh(UINT32 a){return a;}
-	inline UINT64	unalz_le64toh(UINT64 a){return a;}
-#endif
+static _unalz_le16toh unalz_le16toh=NULL;
+static _unalz_le32toh unalz_le32toh=NULL;
+static _unalz_le64toh unalz_le64toh=NULL;
 
-#if defined(__FreeBSD__) || defined(__NetBSD__)
-#	include <sys/endian.h>	
-	inline UINT16	unalz_le16toh(UINT16 a){return le16toh(a);}
-	inline UINT32	unalz_le32toh(UINT32 a){return le32toh(a);}
-	inline UINT64	unalz_le64toh(UINT64 a){return le64toh(a);}
-#endif
-
-#ifdef __APPLE__
-#	include <machine/byte_order.h>
-	inline UINT16   unalz_le16toh(UINT16 a){return NXSwapShort(a);} 
-	inline UINT32   unalz_le32toh(UINT32 a){return NXSwapLong(a);} 
-	inline UINT64   unalz_le64toh(UINT64 a){return NXSwapLongLong(a);} 
-#endif
-
-
-#ifdef __linux__	
-#	include <endian.h>
-#	if __BYTE_ORDER == __BIG_ENDIAN
-	inline UINT16	unalz_le16toh(UINT16 a){return swapint16(a);}
-	inline UINT32	unalz_le32toh(UINT32 a){return swapint32(a);}
-	inline UINT64	unalz_le64toh(UINT64 a){return swapint64(a);}
-#	else		// __LITTLE_ENDIAN
-	inline UINT16	unalz_le16toh(UINT16 a){return (a);}
-	inline UINT32	unalz_le32toh(UINT32 a){return (a);}
-	inline UINT64	unalz_le64toh(UINT64 a){return (a);}
-#	endif
-//#	include <asm/byteorder.h>
-//	inline UINT16	unalz_le16toh(UINT16 a){return le16_to_cpu(a);}
-//	inline UINT32	unalz_le32toh(UINT32 a){return le32_to_cpu(a);}
-//	inline UINT64	unalz_le64toh(UINT64 a){return le64_to_cpu(a);}
-#endif
-
+static UINT16	le16tole(UINT16 a){return a;}
+static UINT32	le32tole(UINT32 a){return a;}
+static UINT64	le64tole(UINT64 a){return a;}
+static UINT16	le16tobe(UINT16 a){return swapint16(a);}
+static UINT32	le32tobe(UINT32 a){return swapint32(a);}
+static UINT64	le64tobe(UINT64 a){return swapint64(a);}
 
 
 #ifndef MAX_PATH
@@ -107,6 +91,44 @@ static time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 	t.tm_year = ((int)(dostime >> 25) & 0x7f) + 80;
 	return mktime(&t);
 }
+
+static BOOL IsBigEndian(void) 
+{
+   union {
+        short a;
+        char  b[2];
+   } endian;
+   
+   endian.a = 0x0102;
+   if(endian.b[0] == 0x02) return FALSE;
+   return TRUE;
+}
+
+// 안전한 strcpy
+static void safe_strcpy(char* dst, const char* src, size_t dst_size)
+{
+#ifdef _WIN32
+	lstrcpynA(dst, src, dst_size);
+#else
+	strlcpy(dst, src, dst_size);
+#endif
+}
+
+static void safe_strcat(char* dst, const char* src, size_t dst_size)
+{
+#ifdef _WIN32
+	StringCchCatExA(dst, dst_size, src, NULL, NULL, STRSAFE_FILL_BEHIND_NULL);
+	//lstrcatA(dst, src);			// not safe!!
+#else
+	strlcat(dst, src, dst_size);
+#endif
+}
+
+#ifdef _WIN32
+#	define safe_sprintf	StringCbPrintfA
+#else
+#	define safe_sprintf	snprintf
+#endif
 
 
 // error string table <- CUnAlz::ERR 의 번역
@@ -148,7 +170,6 @@ static const char* errorstrtable[]=
 };
 
 
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          ctor
 /// @date    2004-03-06 오후 11:19:49
@@ -173,13 +194,30 @@ CUnAlz::CUnAlz()
 #ifdef _UNALZ_ICONV
 
 #ifdef _UNALZ_UTF8
-	strcpy(m_szToCodepage, "UTF-8") ;		// 기본적으로 utf-8
+	safe_strcpy(m_szToCodepage, "UTF-8",UNALZ_LEN_CODEPAGE) ;		// 기본적으로 utf-8
 #else 
-	strcpy(m_szToCodepage, "CP949") ;		// 기본적으로 CP949
+	safe_strcpy(m_szToCodepage, "CP949",UNALZ_LEN_CODEPAGE) ;		// 기본적으로 CP949
 #endif // _UNALZ_UTF8
 
-	strcpy(m_szFromCodepage, "CP949");		// alz 는 949 만 지원
+	safe_strcpy(m_szFromCodepage, "CP949",UNALZ_LEN_CODEPAGE);		// alz 는 949 만 지원
 #endif // _UNALZ_ICONV
+
+	// check endian
+	if(unalz_le16toh==NULL)
+	{
+		if(IsBigEndian())
+		{
+			unalz_le16toh = le16tobe;
+			unalz_le32toh = le32tobe;
+			unalz_le64toh = le64tobe;
+		}
+		else
+		{
+			unalz_le16toh = le16tole;
+			unalz_le32toh = le32tole;
+			unalz_le64toh = le64tole;
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -209,8 +247,6 @@ void CUnAlz::SetCallback(_UnAlzCallback* pFunc, void* param)
 /// @return  
 /// @date    2004-03-06 오후 11:03:59
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-#include <atlbase.h>
-#include <atlconv.h>
 BOOL CUnAlz::Open(LPCWSTR szPathName)
 {
 	USES_CONVERSION;
@@ -327,7 +363,6 @@ CUnAlz::SIGNATURE CUnAlz::ReadSignature()
 	UINT32	dwSig;
 	if(FRead(&dwSig, sizeof(dwSig))==FALSE)
 	{
-//int pos = ftell(m_fp);
 		if(FEof())
 			return SIG_EOF;
 		m_nErr = ERR_CANT_READ_SIG;
@@ -351,7 +386,6 @@ BOOL CUnAlz::ReadAlzFileHeader()
 		m_nErr = ERR_CANT_READ_FILE;
 		return FALSE;
 	}
-
 	return TRUE;
 }
 
@@ -574,7 +608,6 @@ BOOL CUnAlz::ReadCentralDirectoryStructure()
 		FRead(header.fileComment, 1, header.head.fileCommentLength, m_fp);
 		header.fileComment[header.head.fileCommentLength] = NULL;
 	}
-
 	*/
 
 	return TRUE;
@@ -690,13 +723,13 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 	}
 	
 	// 경로명
-	strcpy(szDestPathFileName, szDestPathName);
+	safe_strcpy(szDestPathFileName, szDestPathName, MAX_PATH);
 	if(szDestPathFileName[strlen(szDestPathFileName)]!=PATHSEPC)
-		strcat(szDestPathFileName, PATHSEP);
+		safe_strcat(szDestPathFileName, PATHSEP, MAX_PATH);
 
 	// 파일명
-	if(szDestFileName) strcat(szDestPathFileName, szDestFileName);
-	else strcat(szDestPathFileName, m_posCur->fileName);
+	if(szDestFileName) safe_strcat(szDestPathFileName, szDestFileName, MAX_PATH);
+	else safe_strcat(szDestPathFileName, m_posCur->fileName, MAX_PATH);
 
 	// ../../ 형식의 보안 버그 확인
 	if( strstr(szDestPathFileName, "../")||
@@ -706,8 +739,6 @@ BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFi
 		m_nErr = ERR_GENERAL;
 		return FALSE;
 	}
-
-
 
 #ifndef _WIN32 
 	{
@@ -938,13 +969,15 @@ BOOL CUnAlz::DigPath(const char* szPathName)
 		if(strlen(path)==0)
 		{
 			if(szPathName[0]=='/')			// is absolute path ?
-				strcpy(path,"/");
-			strcat(path, token);
+				safe_strcpy(path,"/", MAX_PATH);
+			else if(szPathName[0]=='\\' && szPathName[1]=='\\')	// network drive ?
+				safe_strcpy(path,"\\\\", MAX_PATH);
+			safe_strcat(path, token, MAX_PATH);
 		}
 		else
 		{
-			strcat(path, PATHSEP);
-			strcat(path, token);
+			safe_strcat(path, PATHSEP,MAX_PATH);
+			safe_strcat(path, token,MAX_PATH);
 		}
 
 		if(IsFolder(path)==FALSE)
@@ -1464,7 +1497,9 @@ BOOL CUnAlz::FOpen(const char* szPathName)
 	m_bIsEOF = FALSE;
 	for(i=0;i<MAX_FILES;i++)						// aa.alz 파일명을 가지고 aa.a00 aa.a01 aa.a02 .. 만들기
 	{
-		if(i>0) sprintf(temp+nLen-3, "%c%02d", (i-1)/100+'a', (i-1)%100);
+		if(i>0) 
+			safe_sprintf(temp+nLen-3, 4, "%c%02d", (i-1)/100+'a', (i-1)%100);
+
 #ifdef _WIN32
 		m_files[i].fp = CreateFileA(temp, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 		if(m_files[i].fp==INVALID_HANDLE_VALUE) break;
@@ -1689,7 +1724,6 @@ BOOL	CUnAlz::chkValidPassword()
 
 
 /*
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //	from CZipArchive
 //	Copyright (C) 2000 - 2004 Tadeusz Dracz
@@ -1756,7 +1790,6 @@ UINT32 CUnAlz::CryptCRC32(UINT32 l, CHAR c)
 	const ULONG *CRC_TABLE = get_crc_table();
 	return CRC_TABLE[(l ^ c) & 0xff] ^ (l >> 8);
 }
-
 */
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1877,8 +1910,21 @@ void CUnAlz::DecryptingData(int nSize, BYTE* data)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 UINT32 CUnAlz::CRC32(UINT32 l, BYTE c)
 {
-	const ULONG *CRC_TABLE = get_crc_table();
+	const unsigned long *CRC_TABLE = get_crc_table();
 	return CRC_TABLE[(l ^ c) & 0xff] ^ (l >> 8);
 }
+
+void CUnAlz::SetPassword(char *passwd) 
+{ 
+	if(strlen(passwd) == 0) return; 
+	safe_strcpy(m_szPasswd, passwd, UNALZ_LEN_PASSWORD); 
+}
+
+#ifdef _UNALZ_ICONV
+void CUnAlz::SetDestCodepage(const char* szToCodepage)
+{
+	safe_strcpy(m_szToCodepage, szToCodepage, UNALZ_LEN_CODEPAGE); 
+}
+#endif
 
 

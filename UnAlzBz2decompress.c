@@ -279,7 +279,6 @@ Int32 BZ2_decompress ( DState* s )
       GET_UCHAR(BZ_X_BLKHDR_1, uc);
 
 	  // [ALZ] - 변형된 헤더 
-
 	  if (uc != 'D')
 		  RETURN(BZ_DATA_ERROR_MAGIC);
 
