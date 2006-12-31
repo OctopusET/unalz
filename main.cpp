@@ -28,7 +28,8 @@ void Copyright()
 //	printf("unalz v0.52 (2005/07/27) \n");
 //	printf("unalz v0.53 (2005/10/15) \n");
 //	printf("unalz v0.54 (2005/11/21) \n");
-	printf("unalz v0.55 (2006/03/10) \n");
+//	printf("unalz v0.55 (2006/03/10) \n");
+	printf("unalz v0.60 (2006/12/31) \n");
 	printf("Copyright(C) 2004-2006 by hardkoder@gmail (http://www.kipple.pe.kr) \n");
 }
 
@@ -81,25 +82,26 @@ void Usage()
 
 
 
-void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* param, BOOL* bHalt)
+void UnAlzCallback(const char* szFileName, INT64 nCurrent, INT64 nRange, void* param, BOOL* bHalt)
 {
 	if(g_bPipeMode) return;		// slient
 
+#define MSG_BUF_LEN	1024
 	// progress
-	static char szFileName[1024]={0};
+	static char  szMessage[MSG_BUF_LEN]={0};
+	static INT64 nPrevPercent = -1;
 	INT64	percent;
-	static  INT64 nPrevPercent = -1;
 
 	// 파일명 출력..
 	if(szMessage)
 	{
 		printf("\n");
 #ifdef _WIN32
-		sprintf(szFileName, "unalziiiing : %s (%I64dbytes) ", szMessage, nRange);
+		_snprintf(szMessage, MSG_BUF_LEN, "unalziiiing : %s (%I64dbytes) ", szFileName, nRange);
 #else
-		sprintf(szFileName, "unalziiiing : %s (%lldbytes) ", szMessage, nRange);
+		snprintf(szMessage, MSG_BUF_LEN, "unalziiiing : %s (%lldbytes) ", szFileName, nRange);
 #endif
-		printf("%s", szFileName);
+		printf("%s", szMessage);
 		fflush(stdout);
 		nPrevPercent = -1;
 		return;
@@ -113,17 +115,6 @@ void UnAlzCallback(const char* szMessage, INT64 nCurrent, INT64 nRange, void* pa
 	printf(".");
 	fflush(stdout);
 
-	/*
-	char	buf[1024];
-#ifdef _WIN32
-	sprintf(buf, "\r%s %I64d/%I64d (%I64d%%)", szFileName, nCurrent, nRange, percent);
-#else
-//	sprintf(buf, "\r%s %d/%d (%d%%)", szMessage, (int)nCurrent, (int)nRange, (int)percent);		// int64 를 출력할라면 어찌해야 되는지?
-	sprintf(buf, "\r%s %lld/%lld (%lld%%)", szFileName, nCurrent, Range, percent);
-#endif
-	puts(buf);
-	fflush(stdout);
-	*/
 }
 
 
@@ -277,14 +268,14 @@ int main(int argc, char* argv[])
 		{
 			if(password)						// command line 으로 암호가 지정되었을 경우.
 			{
-				unalz.setPassword(password);
+				unalz.SetPassword(password);
 			}
 			else
 			{
 				char pwd[256];
 				printf("Enter Password : ");
 				fgets(pwd,256,stdin);
-				unalz.setPassword(pwd);
+				unalz.SetPassword(pwd);
 			}
 		}
 

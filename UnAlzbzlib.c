@@ -1444,8 +1444,13 @@ BZFILE * bzopen_or_bzdopen
       }
       mode++;
    }
+#ifndef __OpenBSD__
    strcat(mode2, writing ? "w" : "r" );
    strcat(mode2,"b");   /* binary mode */
+#else		// by liam.joo@gmail 2006/12
+   strlcat(mode2, writing ? "w" : "r", sizeof(mode2) );
+   strlcat(mode2,"b",sizeof(mode2));
+#endif
 
    if (open_mode==0) {
       if (path==NULL || strcmp(path,"")==0) {
