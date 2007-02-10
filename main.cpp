@@ -29,8 +29,9 @@ void Copyright()
 //	printf("unalz v0.53 (2005/10/15) \n");
 //	printf("unalz v0.54 (2005/11/21) \n");
 //	printf("unalz v0.55 (2006/03/10) \n");
-	printf("unalz v0.60 (2006/12/31) \n");
-	printf("Copyright(C) 2004-2006 by hardkoder@gmail (http://www.kipple.pe.kr) \n");
+//	printf("unalz v0.60 (2006/12/31) \n");
+	printf("unalz v0.61 (2007/02/10) \n");
+	printf("Copyright(C) 2004-2007 by hardkoder@gmail (http://www.kipple.pe.kr) \n");
 }
 
 
@@ -93,7 +94,7 @@ void UnAlzCallback(const char* szFileName, INT64 nCurrent, INT64 nRange, void* p
 	INT64	percent;
 
 	// 파일명 출력..
-	if(szMessage)
+	if(szFileName)
 	{
 		printf("\n");
 #ifdef _WIN32

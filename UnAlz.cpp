@@ -104,25 +104,6 @@ static BOOL IsBigEndian(void)
    return TRUE;
 }
 
-// 안전한 strcpy
-static void safe_strcpy(char* dst, const char* src, size_t dst_size)
-{
-#ifdef _WIN32
-	lstrcpynA(dst, src, dst_size);
-#else
-	strlcpy(dst, src, dst_size);
-#endif
-}
-
-static void safe_strcat(char* dst, const char* src, size_t dst_size)
-{
-#ifdef _WIN32
-	StringCchCatExA(dst, dst_size, src, NULL, NULL, STRSAFE_FILL_BEHIND_NULL);
-	//lstrcatA(dst, src);			// not safe!!
-#else
-	strlcat(dst, src, dst_size);
-#endif
-}
 
 #ifdef _WIN32
 #	define safe_sprintf	StringCbPrintfA
@@ -1927,4 +1908,51 @@ void CUnAlz::SetDestCodepage(const char* szToCodepage)
 }
 #endif
 
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///          문자열 처리 함수들
+/// @param   l  
+/// @param   c  
+/// @return  
+/// @date    2007-02
+////////////////////////////////////////////////////////////////////////////////////////////////////
+unsigned int CUnAlz::_strlcpy (char *dest, const char *src, unsigned int size)
+{
+	register unsigned int i = 0;
+	if (size > 0) {
+	size--;
+	for (i=0; size > 0 && src[i] != '\0'; ++i, size--)
+		dest[i] = src[i];
+	dest[i] = '\0';
+	}
+	while (src[i++]);
+	return i;
+}
+unsigned int CUnAlz::_strlcat (char *dest, const char *src, unsigned int size)
+{
+	register char *d = dest;
+	for (; size > 0 && *d != '\0'; size--, d++);
+	return (d - dest) + _strlcpy(d, src, size);
+}
+
+// 안전한 strcpy
+void CUnAlz::safe_strcpy(char* dst, const char* src, size_t dst_size)
+{
+#ifdef _WIN32
+	lstrcpynA(dst, src, dst_size);
+#else
+	_strlcpy(dst, src, dst_size);
+#endif
+}
+
+void CUnAlz::safe_strcat(char* dst, const char* src, size_t dst_size)
+{
+#ifdef _WIN32
+	StringCchCatExA(dst, dst_size, src, NULL, NULL, STRSAFE_FILL_BEHIND_NULL);
+	//lstrcatA(dst, src);			// not safe!!
+#else
+	_strlcat(dst, src, dst_size);
+#endif
+}
 
