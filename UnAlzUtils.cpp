@@ -2,10 +2,6 @@
 #include <time.h>
 #include "UnAlzUtils.h"
 
-#ifdef _WIN32				// safe string 처리
-#	include "strsafe.h"
-#endif
-
 #ifdef _WIN32
 #	define I64FORM(x) "%"#x"I64d" 
 #	define U64FORM(x) "%"#x"I64u"
@@ -29,15 +25,6 @@ time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
 	return mktime(&t);
 }
 
-static void safe_strcat(char* dst, const char* src, size_t dst_size)
-{
-#ifdef _WIN32
-	StringCchCatExA(dst, dst_size, src, NULL, NULL, STRSAFE_FILL_BEHIND_NULL);
-	//lstrcatA(dst, src);			// not safe!!
-#else
-	strlcat(dst, src, dst_size);
-#endif
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          fileAttribute 를 스트링으로 바꿔준다.
@@ -51,24 +38,24 @@ void FileAttr2Str(char szAttr[LEN_ATTR], BYTE fileAttribute)
 	szAttr[0] = 0;
 
 	if(fileAttribute&ALZ_FILEATTR_FILE)
-		safe_strcat(szAttr, "A", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "A", LEN_ATTR);
 	else
-		safe_strcat(szAttr, "_", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "_", LEN_ATTR);
 
 	if(fileAttribute&ALZ_FILEATTR_DIRECTORY)
-		safe_strcat(szAttr, "D", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "D", LEN_ATTR);
 	else
-		safe_strcat(szAttr, "_", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "_", LEN_ATTR);
 
 	if(fileAttribute&ALZ_FILEATTR_READONLY)
-		safe_strcat(szAttr, "R", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "R", LEN_ATTR);
 	else
-		safe_strcat(szAttr, "_", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "_", LEN_ATTR);
 
 	if(fileAttribute&ALZ_FILEATTR_HIDDEN)
-		safe_strcat(szAttr, "H", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "H", LEN_ATTR);
 	else
-		safe_strcat(szAttr, "_", LEN_ATTR);
+		CUnAlz::safe_strcat(szAttr, "_", LEN_ATTR);
 }
 
 

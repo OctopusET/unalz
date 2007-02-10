@@ -107,6 +107,8 @@
 	2006/04/23	- 엔디안 처리를 런타임에 하도록 수정
 	2006/12/31	- strcpy/strcat/sprintf 와 같은 버퍼 오버플로우 가능성이 있는 함수 제거 (by liam.joo@gmail)
 				- unalz 0.60
+	2007/02/10	- 리눅스등에서 strlcpy, strlcat 컴파일 에러 수정
+				- unalz 0.61
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -210,8 +212,8 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.60";
-static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2006 by hardkoder@gmail ( http://www.kipple.pe.kr ) ";
+static const char UNALZ_VERSION[]   = "CUnAlz0.61";
+static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2007 by hardkoder@gmail ( http://www.kipple.pe.kr ) ";
 
 enum		{ENCR_HEADER_LEN=12}; // xf86
 // 맨 파일 앞..
@@ -482,6 +484,12 @@ public :
 	static const char*	GetVersion() { return UNALZ_VERSION; }
 	static const char*	GetCopyright() { return UNALZ_COPYRIGHT; }
 	BOOL				IsHalted() { return m_bHalt; }		// by xf86
+
+public :
+	static void			safe_strcpy(char* dst, const char* src, size_t dst_size);
+	static void			safe_strcat(char* dst, const char* src, size_t dst_size);
+	static unsigned int _strlcpy (char *dest, const char *src, unsigned int size);
+	static unsigned int _strlcat (char *dest, const char *src, unsigned int size);
 
 private :
 	SIGNATURE	ReadSignature();
