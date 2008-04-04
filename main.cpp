@@ -30,8 +30,9 @@ void Copyright()
 //	printf("unalz v0.54 (2005/11/21) \n");
 //	printf("unalz v0.55 (2006/03/10) \n");
 //	printf("unalz v0.60 (2006/12/31) \n");
-	printf("unalz v0.61 (2007/02/10) \n");
-	printf("Copyright(C) 2004-2007 by hardkoder@gmail (http://www.kipple.pe.kr) \n");
+//	printf("unalz v0.61 (2007/02/10) \n");
+	printf("unalz v0.62 (2008/04/04) \n");
+	printf("Copyright(C) 2004-2008 by kippler@gmail.com (http://www.kipple.pe.kr) \n");
 }
 
 
@@ -273,9 +274,11 @@ int main(int argc, char* argv[])
 			}
 			else
 			{
+				char temp[256];
 				char pwd[256];
 				printf("Enter Password : ");
-				fgets(pwd,256,stdin);
+				fgets(temp,256,stdin);
+				sscanf(temp, "%s\n", pwd);		// remove \n
 				unalz.SetPassword(pwd);
 			}
 		}

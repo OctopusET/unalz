@@ -2,7 +2,7 @@
   UNALZ : read and extract module for ALZ format.
 
   LICENSE (zlib License)
-  Copyright (C) 2004-2005 hardkoder@gmail , http://www.kipple.pe.kr
+  Copyright (C) 2004-2007 kippler@gmail.com , http://www.kipple.pe.kr
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -41,10 +41,10 @@
 	- .ALZ 의 압축을 해제하기 위한 모듈. 
 	- ALZ는 BZIP2변형(변형이라고 뭐 개선한게 아니고, 헤더나 CRC 정보등을 빼서 크기를 줄인 것임)과, 
 	  DEFLATE 압축 알고리즘에 ZIP과 유사한 헤더를 만들어서 씌운 포맷임.
-	  ( bzip2 는 4.9x 에서 사용하였고, deflate 는 5.x 부터 사용하였음. 5.x 부터는 bzip2는 너무 느려서 사용 안함 )
+	  (bzip2 는 4.9x 에서 사용하였고, deflate 는 5.x 부터 사용하였음. 5.x 부터는 bzip2는 너무 느려서 사용 안함)
 	- UnAlzBz2decompress.c 와 UnAlzbzlib.c 는 원래의 bzip2 소스에서 alz 용으로 수정된 파일임
-	  ( deflate 는 변형이 안되었기 때문에 그냥 zlib 를 써도 되지만.. bzip2 는 변형이 되어서 
-	  원래의 bzip2 소스를 그대로 쓰면 안된다. )
+	  (deflate 는 변형이 안되었기 때문에 그냥 zlib 를 써도 되지만.. bzip2 는 변형이 되어서 
+	  원래의 bzip2 소스를 그대로 쓰면 안된다.)
 	- 이 소스는 4칸 탭을 사용 하였음.
 
   개발 순서 :
@@ -57,11 +57,11 @@
 	2004/02/08	- bzip2 대충 지원
 	2004/03/01	- bzip2 거의 완벽 지원 乃
 				- callback 구현..
-	2004/03/07	- 유틸 함수 추가 ( ExtractCurrentFileToBuf() )
-	2004/10/03	- 분할 압축 해제 기능 추가 ( FILE I/O 에 대한 래퍼 클래스 구현 )
+	2004/03/07	- 유틸 함수 추가 (ExtractCurrentFileToBuf())
+	2004/10/03	- 분할 압축 해제 기능 추가 (FILE I/O 에 대한 래퍼 클래스 구현)
 	            - 2GB 이상의 파일 처리 지원 (WINDOWS ONLY)
 	2004/10/22	- 다중 플랫폼(BSD/LINUX)지원을 위한 수정
-				  ( BSD/LINUX 의 경우 2GB 이하의 파일만 지원 )
+				  (BSD/LINUX 의 경우 2GB 이하의 파일만 지원)
 				- unalz 0.20
 	2004/10/23	- by xxfree86 : DARWIN 컴파일 지원, 경로명에 "\\" 포함시 문제점 수정
 	2004/10/24	- by aqua0125 : 코드페이지 변환처리, 64bit 파일 처리
@@ -99,16 +99,20 @@
 				- unalz 0.51
 	2005/07/27	- main() 에 setlocale() 추가
 				- unalz 0.52
-	2005/10/15	- NetBSD 에서 컴파일 되도록 수정 ( by minskim@bawi )
-	2005/11/21	- buffer overflow 버그 수정 ( by Ulf Harnhammar )
+	2005/10/15	- NetBSD 에서 컴파일 되도록 수정 (by minskim@bawi)
+	2005/11/21	- buffer overflow 버그 수정 (by Ulf Harnhammar)
 				- unalz 0.53
-	2006/03/10	- .. 폴더 관련 보안 문제 수정 (by vuln@secunia )
+	2006/03/10	- .. 폴더 관련 보안 문제 수정 (by vuln@secunia)
 				- unalz 0.55
 	2006/04/23	- 엔디안 처리를 런타임에 하도록 수정
 	2006/12/31	- strcpy/strcat/sprintf 와 같은 버퍼 오버플로우 가능성이 있는 함수 제거 (by liam.joo@gmail)
 				- unalz 0.60
 	2007/02/10	- 리눅스등에서 strlcpy, strlcat 컴파일 에러 수정
 				- unalz 0.61
+	2007/04/12	- unalz command 라인 실행중 암호 입력시 \n이 포함되는 버그 수정
+	2008/04/04	- debian 빌드 관련 수정 (by cwryu@debian )
+				- 소스 정리, NULL iterator 관련 수정
+				- unalz 0.62
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -119,7 +123,7 @@
 	- CRC 체크기능
 
 
-  컴파일 옵션 ( -DXXXX )
+  컴파일 옵션 (-DXXXX)
 	- _WIN32 : WIN32 
 	- _UNALZ_ICONV : iconv 를 사용해서 code 페이지 변환 지원
 	- _UNALZ_UTF8 : _UNALZ_ICONV 를 사용할 경우 기본 코드페이지를 "UTF-8" 로 지정
@@ -130,6 +134,8 @@
 #ifndef _UNALZ_H_
 #define _UNALZ_H_
 
+#include <cstdlib>
+#include <cstring>
 #include <vector>
 using namespace std;
 
@@ -212,10 +218,10 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.61";
-static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2007 by hardkoder@gmail ( http://www.kipple.pe.kr ) ";
+static const char UNALZ_VERSION[]   = "CUnAlz0.62";
+static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2008 by kippler@gmail.com ( http://www.kipple.pe.kr ) ";
 
-enum		{ENCR_HEADER_LEN=12}; // xf86
+enum		{ALZ_ENCR_HEADER_LEN=12}; // xf86
 // 맨 파일 앞..
 struct SAlzHeader
 {
@@ -263,7 +269,7 @@ enum ALZ_FILE_DESCRIPTOR
 	ALZ_FILE_DESCRIPTOR_FILESIZEFIELD_8BYTE = 0x80,
 };
 
-struct _SLocalFileHeaderHead			///<  고정 헤더.
+struct _SAlzLocalFileHeaderHead			///<  고정 헤더.
 {
 	SHORT	fileNameLength;
 	BYTE    fileAttribute;			    // from http://www.zap.pe.kr, enum FILE_ATTRIBUE 참고
@@ -287,12 +293,12 @@ struct _SLocalFileHeaderHead			///<  고정 헤더.
 	*/
 };
 
-struct SLocalFileHeader
+struct SAlzLocalFileHeader
 {
-	SLocalFileHeader() { memset(this, 0, sizeof(*this)); }
-	//~SLocalFileHeader() { if(fileName) free(fileName); if(extraField) free(extraField); }
+	SAlzLocalFileHeader() { memset(this, 0, sizeof(*this)); }
+	//~SAlzLocalFileHeader() { if(fileName) free(fileName); if(extraField) free(extraField); }
 	void Clear() { if(fileName) free(fileName); fileName=NULL; if(extraField) free(extraField);extraField=NULL; }
-	_SLocalFileHeaderHead	head;
+	_SAlzLocalFileHeaderHead	head;
 
 	BYTE					compressionMethod;			///< 압축 방법 : 2 - deflate, 1 - 변형 bzip2, 0 - 압축 안함.
 	BYTE					unknown;
@@ -305,10 +311,10 @@ struct SLocalFileHeader
 	BYTE*					extraField;
 	INT64					dwFileDataPos;				///<  file data 가 저장된 위치..
 	
-	BYTE					encChk[ENCR_HEADER_LEN];	// xf86
+	BYTE					encChk[ALZ_ENCR_HEADER_LEN];	// xf86
 };
 
-struct _SCentralDirectoryStructureHead
+struct _SAlzCentralDirectoryStructureHead
 {
 	UINT32	dwUnknown;						///<  항상 NULL 이던데..
 	UINT32	dwUnknown2;						///<  아마도 crc
@@ -337,7 +343,7 @@ struct SCentralDirectoryStructure
 {
 	SCentralDirectoryStructure() { memset(this, 0, sizeof(*this)); }
 	//~SCentralDirectoryStructure() { if(fileName) free(fileName); if(extraField) free(extraField);if(fileComment)free(fileComment); }
-	_SCentralDirectoryStructureHead	head;
+	_SAlzCentralDirectoryStructureHead	head;
 	/*
 	CHAR*	fileName;
 	BYTE*	extraField;
@@ -372,12 +378,9 @@ struct SEndOfCentralDirectoryRecord
 #ifdef _WIN32
 #	pragma pack(pop, UNALZ)		///<  PACKING 원상 복구
 #else
-#	ifdef __LP64__				// 64bit 는 패킹이 8byte 맞나 ? 잘모르겠다.....
-#		pragma pack(8)
-#	else
-#		pragma pack(4)
-#	endif
+#	pragma pack()				// restore packing
 #endif
+
 
 
 ///<  PROGRESS CALLBACK FUNCTION - 압축 해제 진행 상황을 알고 싶으면 이걸 쓰면 된다.
@@ -420,7 +423,7 @@ public :			///<  WIN32 전용 ( UNICODE 처리용 )
 #endif // _WIN32
 
 public :
-	typedef vector<SLocalFileHeader>		FileList;					///<  파일 목록.
+	typedef vector<SAlzLocalFileHeader>		FileList;					///<  파일 목록.
 	FileList*			GetFileList() { return &m_fileList; };			///<  file 목록 리턴
 	void				SetCurrentFile(FileList::iterator newPos);		///< low level 접근..
 	FileList::iterator	GetCurFileHeader() { return m_posCur; };		///<  현재 (SetCurrentFile() 로 세팅된) 파일 정보
@@ -518,11 +521,11 @@ private :
 private :
 	BOOL		ExtractTo(SExtractDest* dest);
 
-	//BOOL		ExtractDeflate(FILE* fp, SLocalFileHeader& file);
-	//BOOL		ExtractBzip2_bak(FILE* fp, SLocalFileHeader& file); - 실패한(잘못된) 방법 
-	BOOL		ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file);
-	BOOL		ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file);
-	BOOL		ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file);
+	//BOOL		ExtractDeflate(FILE* fp, SAlzLocalFileHeader& file);
+	//BOOL		ExtractBzip2_bak(FILE* fp, SAlzLocalFileHeader& file); - 실패한(잘못된) 방법 
+	BOOL		ExtractDeflate2(SExtractDest* dest, SAlzLocalFileHeader& file);
+	BOOL		ExtractBzip2(SExtractDest* dest, SAlzLocalFileHeader& file);
+	BOOL		ExtractRawfile(SExtractDest* dest, SAlzLocalFileHeader& file);
 
 private :		// bzip2 파일 처리 함수..
 	typedef void MYBZFILE;

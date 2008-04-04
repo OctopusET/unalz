@@ -1,8 +1,8 @@
 
 
-                    unalz v0.61
+                    unalz v0.62
 
-  Copyright(C) 2004-2007 by hardkoder (http://www.kipple.pe.kr)
+  Copyright(C) 2004-2008 by hardkoder (http://www.kipple.pe.kr)
 
 
 - 최초 작성일 : v0.20 - 2004/10/22
