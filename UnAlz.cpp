@@ -1,6 +1,12 @@
-#include "zlib/zlib.h"
 #include "bzip2/bzlib.h"
 #include "UnAlz.h"
+
+#ifdef _WIN32
+#	include "zlib/zlib.h"
+#else
+#	include <zlib.h>
+#endif
+
 
 // utime 함수 처리
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -23,8 +29,8 @@
 #	include <iconv.h>
 #endif
 
-#ifdef __linux__			// __BYTE_ORDER 가져오기 
-#	include <errno.h>		// iconv.h 때문에 필요 
+#if defined(__linux__) || defined(__GLIBC__) || defined(__GNU__)
+#	include <errno.h>
 #endif
 
 #if defined(__NetBSD__)
@@ -38,7 +44,7 @@
 #endif
 
 #ifdef _WIN32				// safe string 처리
-#	include "strsafe.h"
+#	include <strsafe.h>
 #endif
 
 
@@ -159,7 +165,7 @@ CUnAlz::CUnAlz()
 {
 	memset(m_files, 0, sizeof(m_files));
 	m_nErr = ERR_NOERR;
-	m_posCur = (FileList::iterator)NULL;
+	m_posCur = m_fileList.end();//(FileList::iterator)NULL;
 	m_pFuncCallBack = NULL;
 	m_pCallbackParam = NULL;
 	m_bHalt = FALSE;
@@ -331,7 +337,7 @@ void CUnAlz::Close()
 		i->Clear();
 	}
 
-	m_posCur = (FileList::iterator)NULL;
+	m_posCur = m_fileList.end();//(FileList::iterator)NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -377,7 +383,7 @@ BOOL CUnAlz::ReadAlzFileHeader()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOL CUnAlz::ReadLocalFileheader()
 {
-	SLocalFileHeader zipHeader;
+	SAlzLocalFileHeader zipHeader;
 	int ret;
 
 	ret = FRead(&(zipHeader.head), sizeof(zipHeader.head));
@@ -509,7 +515,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 	*/
 
 	if(IsEncryptedFile(zipHeader.head.fileDescriptor)) 
-		FRead(zipHeader.encChk, ENCR_HEADER_LEN);  // xf86
+		FRead(zipHeader.encChk, ALZ_ENCR_HEADER_LEN);  // xf86
 
 	// SKIP FILE DATA
 	zipHeader.dwFileDataPos = FTell();						// data 의 위치 저장하기..
@@ -641,7 +647,7 @@ BOOL CUnAlz::SetCurrentFile(const char* szFileName)
 		}
 	}
 
-	m_posCur = (FileList::iterator)NULL;
+	m_posCur = m_fileList.end();//(FileList::iterator)NULL;
 
 	return FALSE;
 }
@@ -682,8 +688,7 @@ BOOL CUnAlz::ExtractCurrentFileToBuf(BYTE* pDestBuf, int nBufSize)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOL CUnAlz::ExtractCurrentFile(const char* szDestPathName, const char* szDestFileName)
 {
-	if(m_posCur==(FileList::iterator)NULL) {ASSERT(0); return FALSE;}
-
+	if(m_posCur==m_fileList.end()/*(FileList::iterator)NULL*/) {ASSERT(0); return FALSE;}
 	BOOL	ret=FALSE;
 
 	SExtractDest	dest;
@@ -832,7 +837,7 @@ BOOL CUnAlz::ExtractTo(SExtractDest* dest)
 /// @date    2004-03-06 오후 11:09:17
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /*
-BOOL CUnAlz::ExtractDeflate(FILE* fp, SLocalFileHeader& file)
+BOOL CUnAlz::ExtractDeflate(FILE* fp, SAlzLocalFileHeader& file)
 {
 	z_stream	stream;
 	BYTE*		pInBuf=NULL;
@@ -1044,7 +1049,7 @@ int	CUnAlz::WriteToDest(SExtractDest* dest, BYTE* buf, int nSize)
 #define BZIP2_TAIL_SIZE		10		// 대충 4+5 정도.?
 BYTE bzip2Header[BZIP2_HEADER_SIZE] = {0x42, 0x5a, 0x68, 0x39, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59};
 
-BOOL CUnAlz::ExtractBzip2_bak(FILE* fp, SLocalFileHeader& file)
+BOOL CUnAlz::ExtractBzip2_bak(FILE* fp, SAlzLocalFileHeader& file)
 {
 	bz_stream	stream;
 	BYTE*		pInBuf=NULL;
@@ -1137,7 +1142,7 @@ END :
 /// @date    2004-03-06 오후 11:10:53
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 #define BUF_LEN		(4096*2)
-BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
+BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SAlzLocalFileHeader& file)
 {
 	BOOL		ret = FALSE;
 	BYTE		buf[BUF_LEN];
@@ -1213,7 +1218,7 @@ BOOL CUnAlz::ExtractRawfile(SExtractDest* dest, SLocalFileHeader& file)
 /// @date    2004-03-01 오전 5:47:36
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 #define BZIP2_EXTRACT_BUF_SIZE	0x2000
-BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file)
+BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SAlzLocalFileHeader& file)
 {
 	BZFILE		*bzfp = NULL;
 	int			smallMode = 0;
@@ -1332,7 +1337,7 @@ BOOL CUnAlz::ExtractBzip2(SExtractDest* dest, SLocalFileHeader& file)
 /// @return  
 /// @date    2004-03-06 오후 11:11:36
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SLocalFileHeader& file)
+BOOL CUnAlz::ExtractDeflate2(SExtractDest* dest, SAlzLocalFileHeader& file)
 {
 	z_stream	stream;
 	BYTE		pInBuf[IN_BUF_SIZE];
@@ -1742,7 +1747,7 @@ void CUnAlz::CryptUpdateKeys(CHAR c)
 BOOL CUnAlz::CryptCheck(CHAR *buf)
 {
 	CHAR b = 0;
-	for (int i = 0; i < ENCR_HEADER_LEN; i++)
+	for (int i = 0; i < ALZ_ENCR_HEADER_LEN; i++)
 	{
 		b = buf[i]; 
 		CryptDecode((CHAR&)b);
@@ -1831,11 +1836,11 @@ BOOL CUnAlz::CryptCheck(const BYTE* buf)
 {
 	int i;
 	BYTE c;
-	BYTE temp[ENCR_HEADER_LEN];
+	BYTE temp[ALZ_ENCR_HEADER_LEN];
 
-	memcpy(temp, buf, ENCR_HEADER_LEN);		// 임시 복사.
+	memcpy(temp, buf, ALZ_ENCR_HEADER_LEN);		// 임시 복사.
 
-	for(i=0;i<ENCR_HEADER_LEN;i++)
+	for(i=0;i<ALZ_ENCR_HEADER_LEN;i++)
 	{
 		c = temp[i] ^ DecryptByte();
 		UpdateKeys(c);
