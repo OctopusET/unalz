@@ -29,7 +29,7 @@
 #	include <iconv.h>
 #endif
 
-#if defined(__linux__) || defined(__GLIBC__) || defined(__GNU__)
+#if defined(__linux__) || defined(__GLIBC__) || defined(__GNU__) || defined(__APPLE__)
 #	include <errno.h>
 #endif
 
@@ -444,7 +444,7 @@ BOOL CUnAlz::ReadLocalFileheader()
 	size_t size;
 	char inbuf[ICONV_BUF_SIZE];
 	char outbuf[ICONV_BUF_SIZE];
-#if defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__APPLE__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__CYGWIN__) ||  defined(__NetBSD__)
 	const char *inptr = inbuf;
 #else
 	char *inptr = inbuf;

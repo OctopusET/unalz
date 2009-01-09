@@ -2,7 +2,7 @@
   UNALZ : read and extract module for ALZ format.
 
   LICENSE (zlib License)
-  Copyright (C) 2004-2007 kippler@gmail.com , http://www.kipple.pe.kr
+  Copyright (C) 2004-2009 kippler@gmail.com , http://www.kipple.pe.kr
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -113,6 +113,8 @@
 	2008/04/04	- debian 빌드 관련 수정 (by cwryu@debian )
 				- 소스 정리, NULL iterator 관련 수정
 				- unalz 0.62
+	2009/01/09  - apple gcc 컴파일 관련 수정(by lacovnk)
+				- unalz 0.63
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -218,8 +220,8 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.62";
-static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2008 by kippler@gmail.com ( http://www.kipple.pe.kr ) ";
+static const char UNALZ_VERSION[]   = "CUnAlz0.63";
+static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2009 by kippler@gmail.com ( http://www.kipple.pe.kr ) ";
 
 enum		{ALZ_ENCR_HEADER_LEN=12}; // xf86
 // 맨 파일 앞..
