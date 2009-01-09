@@ -31,8 +31,9 @@ void Copyright()
 //	printf("unalz v0.55 (2006/03/10) \n");
 //	printf("unalz v0.60 (2006/12/31) \n");
 //	printf("unalz v0.61 (2007/02/10) \n");
-	printf("unalz v0.62 (2008/04/04) \n");
-	printf("Copyright(C) 2004-2008 by kippler@gmail.com (http://www.kipple.pe.kr) \n");
+//	printf("unalz v0.62 (2008/04/04) \n");
+	printf("unalz v0.63 (2009/01/09) \n");
+	printf("Copyright(C) 2004-2009 by kippler@gmail.com (http://www.kipple.pe.kr) \n");
 }
 
 
@@ -132,8 +133,8 @@ int main(int argc, char* argv[])
 
 	CUnAlz	unalz;
 	char* source=NULL;
-	char* destpath=".";
-	char* destcodepage=NULL;
+	const char* destpath=".";
+	const char* destcodepage=NULL;
 	char* password=NULL;
 	int   count;
 	BOOL  listMode = FALSE;
