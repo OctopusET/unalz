@@ -68,9 +68,10 @@ int ListAlz(CUnAlz* pUnAlz, const char* src)
 	list = pUnAlz->GetFileList();
 
 	printf("\nListing archive: %s\n"
-		   "\n   Date & Time      Attr          Size   Compressed  Name\n",
+		   "\n"
+		   "Attr  Uncomp Size    Comp Size Date & Time & File Name\n",
 		   src);
-	printf("------------------- ----- ------------ ------------  ------------\n");
+	printf("---- ------------ ------------ ------------------------------------------------\n");
 
 //	char szDate[64];
 	char szTime[64];
@@ -91,9 +92,9 @@ int ListAlz(CUnAlz* pUnAlz, const char* src)
 		// attributes
 		FileAttr2Str(szAttr, i->head.fileAttribute);
 
-		printf("%19s %s " I64FORM(12) " " I64FORM(12) "   %s%s\n",
-			   szTime, szAttr, i->uncompressedSize,
-			   i->compressedSize, i->fileName, 
+		printf("%s " I64FORM(12) " " I64FORM(12) " %s  %s%s\n",
+			   szAttr, i->uncompressedSize,
+			   i->compressedSize, szTime, i->fileName, 
 			   i->head.fileDescriptor & ALZ_FILE_DESCRIPTOR_ENCRYPTED ? "*" : "" );
 
 		++fileNum;
@@ -101,11 +102,9 @@ int ListAlz(CUnAlz* pUnAlz, const char* src)
 		totalCompressedSize += i->compressedSize;
 	}
 
-	printf("------------------- ----- ------------ ------------  ------------\n");
-	printf("                         " U64FORM(12) " " U64FORM(12) "   %u file(s)\n",
-		   totalUnCompressedSize, totalCompressedSize, fileNum);
+	printf("---- ------------ ------------ ------------------------------------------------\n");
+	printf("     " U64FORM(12) " " U64FORM(12) " Total %u file%s\n",
+		totalUnCompressedSize, totalCompressedSize, fileNum, fileNum<=1 ? "" : "s");
 
 	return 0;
 }
-
-

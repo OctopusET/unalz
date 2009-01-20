@@ -118,6 +118,16 @@ static BOOL IsBigEndian(void)
 #endif
 
 
+// 64bit file handling support
+#if (_FILE_OFFSET_BITS==64)
+#	define unalz_fseek	fseeko
+#	define unalz_ftell	ftello
+#else
+#	define unalz_fseek	fseek
+#	define unalz_ftell	ftell
+#endif
+
+
 // error string table <- CUnAlz::ERR ÀÇ ¹ø¿ª
 static const char* errorstrtable[]=
 {
@@ -278,7 +288,7 @@ BOOL CUnAlz::Open(const char* szPathName)
 		BOOL		ret;
 
 		if(FEof()) break;
-		//int pos = ftell(m_fp);
+		//int pos = unalz_ftell(m_fp);
 		sig = ReadSignature();
 		if(sig==SIG_EOF)
 		{
@@ -1494,9 +1504,9 @@ BOOL CUnAlz::FOpen(const char* szPathName)
 		m_files[i].fp = fopen(temp, "rb");
 		if(m_files[i].fp==NULL) break;
 		dwFileSizeHigh=0;
-		fseek(m_files[i].fp,0,SEEK_END);		
-		nFileSizeLow=ftell(m_files[i].fp);
-		fseek(m_files[i].fp,0,SEEK_SET);
+		unalz_fseek(m_files[i].fp,0,SEEK_END);		
+		nFileSizeLow=unalz_ftell(m_files[i].fp);
+		unalz_fseek(m_files[i].fp,0,SEEK_SET);
 #endif
 		m_nFileCount++;
 		m_files[i].nFileSize = ((INT64)nFileSizeLow) + (((INT64)dwFileSizeHigh)<<32);
@@ -1584,7 +1594,7 @@ BOOL CUnAlz::FSeek(INT64 offset)
 #ifdef _WIN32
 			SetFilePointer(m_files[i].fp, LONG(m_nCurFilePos), &remainHigh, FILE_BEGIN);
 #else
-			fseek(m_files[i].fp, m_nCurFilePos, SEEK_SET);
+			unalz_fseek(m_files[i].fp, m_nCurFilePos, SEEK_SET);
 #endif
 			return TRUE;
 		}
@@ -1668,7 +1678,7 @@ BOOL CUnAlz::FRead(void* buffer, UINT32 nBytesToRead, int* pTotRead )
 #ifdef _WIN32
 			SetFilePointer(m_files[m_nCurFile].fp, (int)m_nCurFilePos, NULL, FILE_BEGIN);
 #else
-			fseek(m_files[m_nCurFile].fp, m_nCurFilePos, SEEK_SET);
+			unalz_fseek(m_files[m_nCurFile].fp, m_nCurFilePos, SEEK_SET);
 #endif
 		}
 		else
