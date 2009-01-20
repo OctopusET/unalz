@@ -115,6 +115,10 @@
 				- unalz 0.62
 	2009/01/09  - apple gcc 컴파일 관련 수정(by lacovnk)
 				- unalz 0.63
+	2009/01/20  - 2GB가 넘는 파일 처리 관련 수정(by bsjeon@hanmail)
+				- 파일 리스팅 부분 수정
+				- 소스 정리
+				- unalz 0.64
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -564,7 +568,7 @@ private :		// 분할 압축 파일 처리를 위한 래퍼(lapper^^?) 클래스
 	INT64		m_nCurFilePos;						///< 현재 파일의 물리적 위치.
 	BOOL		m_bIsEOF;							///< 파일의 끝까지 (분할 파일 포함해서) 왔나?
 
-	BOOL		m_bIsEncrypted;		// xf86
+	BOOL		m_bIsEncrypted;						///< by xf86
 	BOOL		m_bIsDataDescr;
 #define UNALZ_LEN_PASSWORD	512
 	char		m_szPasswd[UNALZ_LEN_PASSWORD];
