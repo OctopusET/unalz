@@ -8,6 +8,10 @@
 #endif
 
 
+#ifdef _WIN32
+#	pragma warning( disable : 4996 )		// crt secure warning
+#endif
+
 // utime 함수 처리
 #if defined(_WIN32) || defined(__CYGWIN__)
 #	include <time.h>
@@ -36,11 +40,6 @@
 #if defined(__NetBSD__)
 #	include <sys/param.h>	// __NetBSD_Version__
 #	include <errno.h>		// iconv.h 때문에 필요 
-#endif
-
-#ifdef _WIN32				// string conversion
-#	include <atlbase.h>
-#	include <atlconv.h>
 #endif
 
 #ifdef _WIN32				// safe string 처리
@@ -246,8 +245,9 @@ void CUnAlz::SetCallback(_UnAlzCallback* pFunc, void* param)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOL CUnAlz::Open(LPCWSTR szPathName)
 {
-	USES_CONVERSION;
-	return Open(W2A(szPathName));
+	char szPathNameA[MAX_PATH];
+	::WideCharToMultiByte(CP_ACP, 0, szPathName, -1, szPathNameA, MAX_PATH, NULL, NULL);
+	return Open(szPathNameA);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///          대상 파일 세팅하기.
@@ -257,8 +257,9 @@ BOOL CUnAlz::Open(LPCWSTR szPathName)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOL CUnAlz::SetCurrentFile(LPCWSTR szFileName)
 {
-	USES_CONVERSION;
-	return SetCurrentFile(W2A(szFileName));
+	char szFileNameA[MAX_PATH];
+	::WideCharToMultiByte(CP_ACP, 0, szFileName, -1, szFileNameA, MAX_PATH, NULL, NULL);
+	return SetCurrentFile(szFileNameA);
 }
 BOOL CUnAlz::IsFolder(LPCWSTR szPathName)
 {

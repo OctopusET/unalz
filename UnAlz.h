@@ -41,7 +41,7 @@
 	- .ALZ 의 압축을 해제하기 위한 모듈. 
 	- ALZ는 BZIP2변형(변형이라고 뭐 개선한게 아니고, 헤더나 CRC 정보등을 빼서 크기를 줄인 것임)과, 
 	  DEFLATE 압축 알고리즘에 ZIP과 유사한 헤더를 만들어서 씌운 포맷임.
-	  (bzip2 는 4.9x 에서 사용하였고, deflate 는 5.x 부터 사용하였음. 5.x 부터는 bzip2는 너무 느려서 사용 안함)
+	  (bzip2 는 알집 4.9x 에서 사용하였고, deflate 는 5.x 부터 사용하였음. 5.x 부터는 bzip2는 너무 느려서 사용 안함)
 	- UnAlzBz2decompress.c 와 UnAlzbzlib.c 는 원래의 bzip2 소스에서 alz 용으로 수정된 파일임
 	  (deflate 는 변형이 안되었기 때문에 그냥 zlib 를 써도 되지만.. bzip2 는 변형이 되어서 
 	  원래의 bzip2 소스를 그대로 쓰면 안된다.)
@@ -119,6 +119,10 @@
 				- 파일 리스팅 부분 수정
 				- 소스 정리
 				- unalz 0.64
+	2009/04/01  - bzip2 1.0.5 update
+				- vs2008 컴파일 관련 이슈 수정(atlconv 안쓰기, crt secure warning disable) (by kaisyu@gmail)
+				- unalz 0.65
+
   
   기능 :
 	- alz 파일의 압축 해제 (deflate/변형 bzip2/raw)
@@ -224,7 +228,7 @@ namespace UNALZ
 #	pragma pack(1)
 #endif
 
-static const char UNALZ_VERSION[]   = "CUnAlz0.63";
+static const char UNALZ_VERSION[]   = "CUnAlz0.65";
 static const char UNALZ_COPYRIGHT[] = "Copyright(C) 2004-2009 by kippler@gmail.com ( http://www.kipple.pe.kr ) ";
 
 enum		{ALZ_ENCR_HEADER_LEN=12}; // xf86
