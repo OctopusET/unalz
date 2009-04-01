@@ -7,59 +7,19 @@
 /*---                                          decompress.c ---*/
 /*-------------------------------------------------------------*/
 
-/*--
-  This file is a part of bzip2 and/or libbzip2, a program and
-  library for lossless, block-sorting data compression.
+/* ------------------------------------------------------------------
+   This file is part of bzip2/libbzip2, a program and library for
+   lossless, block-sorting data compression.
 
-  Copyright (C) 1996-2002 Julian R Seward.  All rights reserved.
+   bzip2/libbzip2 version 1.0.5 of 10 December 2007
+   Copyright (C) 1996-2007 Julian Seward <jseward@bzip.org>
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions
-  are met:
+   Please read the WARNING, DISCLAIMER and PATENTS sections in the 
+   README file.
 
-  1. Redistributions of source code must retain the above copyright
-     notice, this list of conditions and the following disclaimer.
-
-  2. The origin of this software must not be misrepresented; you must 
-     not claim that you wrote the original software.  If you use this 
-     software in a product, an acknowledgment in the product 
-     documentation would be appreciated but is not required.
-
-  3. Altered source versions must be plainly marked as such, and must
-     not be misrepresented as being the original software.
-
-  4. The name of the author may not be used to endorse or promote 
-     products derived from this software without specific prior written 
-     permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
-  OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-  ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
-  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-  GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  Julian Seward, Cambridge, UK.
-  jseward@acm.org
-  bzip2/libbzip2 version 1.0 of 21 March 2000
-
-  This program is based on (at least) the work of:
-     Mike Burrows
-     David Wheeler
-     Peter Fenwick
-     Alistair Moffat
-     Radford Neal
-     Ian H. Witten
-     Robert Sedgewick
-     Jon L. Bentley
-
-  For more information on these sources, see the manual.
---*/
+   This program is released under the terms of the license contained
+   in the file LICENSE.
+   ------------------------------------------------------------------ */
 
 
 #include "bzip2/bzlib_private.h"
@@ -240,16 +200,13 @@ Int32 BZ2_decompress ( DState* s )
 	  // [ALZ] - 머리 떼기
 	  /*
       GET_UCHAR(BZ_X_MAGIC_1, uc);
-      if (uc != BZ_HDR_B) 
-		  RETURN(BZ_DATA_ERROR_MAGIC);
+      if (uc != BZ_HDR_B) RETURN(BZ_DATA_ERROR_MAGIC);
 
       GET_UCHAR(BZ_X_MAGIC_2, uc);
-      if (uc != BZ_HDR_Z) 
-		  RETURN(BZ_DATA_ERROR_MAGIC);
+      if (uc != BZ_HDR_Z) RETURN(BZ_DATA_ERROR_MAGIC);
 
       GET_UCHAR(BZ_X_MAGIC_3, uc)
-      if (uc != BZ_HDR_h) 
-		  RETURN(BZ_DATA_ERROR_MAGIC);
+      if (uc != BZ_HDR_h) RETURN(BZ_DATA_ERROR_MAGIC);
 	*/
 
 	  case BZ_X_MAGIC_1 :	// 없어진 헤더 인식 대신 
@@ -259,8 +216,7 @@ Int32 BZ2_decompress ( DState* s )
 	  s->blockSize100k = 0x39;						// static 할당.
 
       if (s->blockSize100k < (BZ_HDR_0 + 1) || 
-          s->blockSize100k > (BZ_HDR_0 + 9)) 
-		  RETURN(BZ_DATA_ERROR_MAGIC);
+          s->blockSize100k > (BZ_HDR_0 + 9)) RETURN(BZ_DATA_ERROR_MAGIC);
       s->blockSize100k -= BZ_HDR_0;
 
       if (s->smallDecompress) {
@@ -268,12 +224,10 @@ Int32 BZ2_decompress ( DState* s )
          s->ll4  = BZALLOC( 
                       ((1 + s->blockSize100k * 100000) >> 1) * sizeof(UChar) 
                    );
-         if (s->ll16 == NULL || s->ll4 == NULL) 
-			 RETURN(BZ_MEM_ERROR);
+         if (s->ll16 == NULL || s->ll4 == NULL) RETURN(BZ_MEM_ERROR);
       } else {
          s->tt  = BZALLOC( s->blockSize100k * 100000 * sizeof(Int32) );
-         if (s->tt == NULL) 
-			 RETURN(BZ_MEM_ERROR);
+         if (s->tt == NULL) RETURN(BZ_MEM_ERROR);
       }
 
       GET_UCHAR(BZ_X_BLKHDR_1, uc);
@@ -300,23 +254,17 @@ Int32 BZ2_decompress ( DState* s )
 
 	  /* [ALZ] - 원래 헤더
       if (uc == 0x17) goto endhdr_2;
-      if (uc != 0x31) 
-		  RETURN(BZ_DATA_ERROR);
+      if (uc != 0x31) RETURN(BZ_DATA_ERROR);
       GET_UCHAR(BZ_X_BLKHDR_2, uc);
-      if (uc != 0x41) 
-		  RETURN(BZ_DATA_ERROR);
+      if (uc != 0x41) RETURN(BZ_DATA_ERROR);
       GET_UCHAR(BZ_X_BLKHDR_3, uc);
-      if (uc != 0x59) 
-		  RETURN(BZ_DATA_ERROR);
+      if (uc != 0x59) RETURN(BZ_DATA_ERROR);
       GET_UCHAR(BZ_X_BLKHDR_4, uc);
-      if (uc != 0x26) 
-		  RETURN(BZ_DATA_ERROR);
+      if (uc != 0x26) RETURN(BZ_DATA_ERROR);
       GET_UCHAR(BZ_X_BLKHDR_5, uc);
-      if (uc != 0x53) 
-		  RETURN(BZ_DATA_ERROR);
+      if (uc != 0x53) RETURN(BZ_DATA_ERROR);
       GET_UCHAR(BZ_X_BLKHDR_6, uc);
-      if (uc != 0x59) 
-		  RETURN(BZ_DATA_ERROR);
+      if (uc != 0x59) RETURN(BZ_DATA_ERROR);
 	*/
 
       s->currBlockNo++;
@@ -369,25 +317,21 @@ Int32 BZ2_decompress ( DState* s )
                if (uc == 1) s->inUse[i * 16 + j] = True;
             }
       makeMaps_d ( s );
-      if (s->nInUse == 0) 
-		  RETURN(BZ_DATA_ERROR);
+      if (s->nInUse == 0) RETURN(BZ_DATA_ERROR);
       alphaSize = s->nInUse+2;
 
       /*--- Now the selectors ---*/
       GET_BITS(BZ_X_SELECTOR_1, nGroups, 3);
-      if (nGroups < 2 || nGroups > 6) 
-		  RETURN(BZ_DATA_ERROR);
+      if (nGroups < 2 || nGroups > 6) RETURN(BZ_DATA_ERROR);
       GET_BITS(BZ_X_SELECTOR_2, nSelectors, 15);
-      if (nSelectors < 1) 
-		  RETURN(BZ_DATA_ERROR);
+      if (nSelectors < 1) RETURN(BZ_DATA_ERROR);
       for (i = 0; i < nSelectors; i++) {
          j = 0;
          while (True) {
             GET_BIT(BZ_X_SELECTOR_3, uc);
             if (uc == 0) break;
             j++;
-            if (j >= nGroups) 
-				RETURN(BZ_DATA_ERROR);
+            if (j >= nGroups) RETURN(BZ_DATA_ERROR);
          }
          s->selectorMtf[i] = j;
       }
@@ -411,8 +355,7 @@ Int32 BZ2_decompress ( DState* s )
          GET_BITS(BZ_X_CODING_1, curr, 5);
          for (i = 0; i < alphaSize; i++) {
             while (True) {
-               if (curr < 1 || curr > 20) 
-				   RETURN(BZ_DATA_ERROR);
+               if (curr < 1 || curr > 20) RETURN(BZ_DATA_ERROR);
                GET_BIT(BZ_X_CODING_2, uc);
                if (uc == 0) break;
                GET_BIT(BZ_X_CODING_3, uc);
@@ -488,16 +431,14 @@ Int32 BZ2_decompress ( DState* s )
 
             if (s->smallDecompress)
                while (es > 0) {
-                  if (nblock >= nblockMAX) 
-					  RETURN(BZ_DATA_ERROR);
+                  if (nblock >= nblockMAX) RETURN(BZ_DATA_ERROR);
                   s->ll16[nblock] = (UInt16)uc;
                   nblock++;
                   es--;
                }
             else
                while (es > 0) {
-                  if (nblock >= nblockMAX) 
-					  RETURN(BZ_DATA_ERROR);
+                  if (nblock >= nblockMAX) RETURN(BZ_DATA_ERROR);
                   s->tt[nblock] = (UInt32)uc;
                   nblock++;
                   es--;
@@ -507,8 +448,7 @@ Int32 BZ2_decompress ( DState* s )
 
          } else {
 
-            if (nblock >= nblockMAX) 
-				RETURN(BZ_DATA_ERROR);
+            if (nblock >= nblockMAX) RETURN(BZ_DATA_ERROR);
 
             /*-- uc = MTF ( nextSym-1 ) --*/
             {
@@ -581,16 +521,22 @@ Int32 BZ2_decompress ( DState* s )
       if (s->origPtr < 0 || s->origPtr >= nblock)
          RETURN(BZ_DATA_ERROR);
 
+      /*-- Set up cftab to facilitate generation of T^(-1) --*/
+      s->cftab[0] = 0;
+      for (i = 1; i <= 256; i++) s->cftab[i] = s->unzftab[i-1];
+      for (i = 1; i <= 256; i++) s->cftab[i] += s->cftab[i-1];
+      for (i = 0; i <= 256; i++) {
+         if (s->cftab[i] < 0 || s->cftab[i] > nblock) {
+            /* s->cftab[i] can legitimately be == nblock */
+            RETURN(BZ_DATA_ERROR);
+         }
+      }
+
       s->state_out_len = 0;
       s->state_out_ch  = 0;
       BZ_INITIALISE_CRC ( s->calculatedBlockCRC );
       s->state = BZ_X_OUTPUT;
       if (s->verbosity >= 2) VPrintf0 ( "rt+rld" );
-
-      /*-- Set up cftab to facilitate generation of T^(-1) --*/
-      s->cftab[0] = 0;
-      for (i = 1; i <= 256; i++) s->cftab[i] = s->unzftab[i-1];
-      for (i = 1; i <= 256; i++) s->cftab[i] += s->cftab[i-1];
 
       if (s->smallDecompress) {
 
@@ -656,21 +602,16 @@ Int32 BZ2_decompress ( DState* s )
 
 	  // [ALZ] - 꼬리 떼기 
 	  /*
-	  GET_UCHAR(BZ_X_ENDHDR_2, uc);
-	  if (uc != 0x72) 
-		  RETURN(BZ_DATA_ERROR);
-	  GET_UCHAR(BZ_X_ENDHDR_3, uc);
-	  if (uc != 0x45) 
-		  RETURN(BZ_DATA_ERROR);
-	  GET_UCHAR(BZ_X_ENDHDR_4, uc);
-	  if (uc != 0x38) 
-		  RETURN(BZ_DATA_ERROR);
-	  GET_UCHAR(BZ_X_ENDHDR_5, uc);
-	  if (uc != 0x50) 
-		  RETURN(BZ_DATA_ERROR);
-	  GET_UCHAR(BZ_X_ENDHDR_6, uc);
-	  if (uc != 0x90) 
-		  RETURN(BZ_DATA_ERROR);
+      GET_UCHAR(BZ_X_ENDHDR_2, uc);
+      if (uc != 0x72) RETURN(BZ_DATA_ERROR);
+      GET_UCHAR(BZ_X_ENDHDR_3, uc);
+      if (uc != 0x45) RETURN(BZ_DATA_ERROR);
+      GET_UCHAR(BZ_X_ENDHDR_4, uc);
+      if (uc != 0x38) RETURN(BZ_DATA_ERROR);
+      GET_UCHAR(BZ_X_ENDHDR_5, uc);
+      if (uc != 0x50) RETURN(BZ_DATA_ERROR);
+      GET_UCHAR(BZ_X_ENDHDR_6, uc);
+      if (uc != 0x90) RETURN(BZ_DATA_ERROR);
 
       s->storedCombinedCRC = 0;
       GET_UCHAR(BZ_X_CCRC_1, uc);

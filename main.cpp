@@ -37,6 +37,7 @@
 
 #ifdef _WIN32
 #	pragma warning( disable : 4786 )		// stl warning ¾ø¾Ö±â
+#	pragma warning( disable : 4996 )		// crt secure warning
 #endif
 
 #include <stdio.h>
@@ -70,7 +71,8 @@ void Copyright()
 //	printf("unalz v0.61 (2007/02/10) \n");
 //	printf("unalz v0.62 (2008/04/04) \n");
 //	printf("unalz v0.63 (2009/01/09) \n");
-	printf("unalz v0.64 (2009/01/20) \n");
+//	printf("unalz v0.64 (2009/01/20) \n");
+	printf("unalz v0.65 (2009/04/01) \n");
 	printf("Copyright(C) 2004-2009 by kippler@gmail.com (http://www.kipple.pe.kr) \n");
 }
 

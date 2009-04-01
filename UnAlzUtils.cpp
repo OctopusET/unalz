@@ -10,6 +10,11 @@
 #	define U64FORM(x) "%"#x"llu"
 #endif
 
+#ifdef _WIN32
+#	pragma warning( disable : 4996 )		// crt secure warning
+#endif
+
+
 #define LEN_ATTR	6
 
 time_t dosTime2TimeT(UINT32 dostime)   // from INFO-ZIP src
